@@ -22,10 +22,26 @@ extern "C" {
 
 unsigned int GetLine(char *user_input, unsigned int size)
 {
-    if (NULL != fgets(user_input, size, stdin)) {
+    static unsigned int counter = 0;
+    rt_kprintf("%s %s %d\n", __FILE__, __func__, __LINE__);
+
+#if 0
+    if (NULL != fgets(user_input, size, stdin))
+    {
+        rt_kprintf("%s %s %d\n", __FILE__, __func__, __LINE__);
+
         return 1;
     }
+    rt_kprintf("%s %s %d\n", __FILE__, __func__, __LINE__);
     return 0;
+#else
+
+    user_input[0] = '1' + (counter % 5);
+    user_input[1] = (char)0;
+    counter++;
+
+    return 1;
+#endif
 }
 
 #ifdef __cplusplus

@@ -22,13 +22,15 @@
 bool hal_platform_init(void)
 {
     /* Initialise platform */
-    if (0 != platform_init()) {
+    if (0 != platform_init())
+    {
         printf_err("Failed to initialise platform %s\n", platform_name());
         return false;
     }
 
     /* Initialise LCD */
-    if (0 != hal_lcd_init()) {
+    if (0 != hal_lcd_init())
+    {
         printf_err("hal_lcd_init failed\n");
         return false;
     }
@@ -44,10 +46,14 @@ void hal_platform_release(void)
     platform_release();
 }
 
-bool hal_get_user_input(char* user_input, int size)
+bool hal_get_user_input(char *user_input, int size)
 {
-    if (1 != GetLine(user_input, size - 1)) {
+    if (1 != GetLine(user_input, size - 1))
+    {
+        info("%s %s %d\n", __FILE__, __func__, __LINE__);
         return true;
     }
+
+    rt_kprintf("%s %s %d\n", __FILE__, __func__, __LINE__);
     return false;
 }

@@ -17,12 +17,13 @@
 
 #include "ethosu_cpu_cache.h"
 
-#include "RTE_Components.h"         /* For CPU related defintiions */
+#include "NuMicro.h"                /* For CPU related defintiions */
 #include "ethosu_driver.h"          /* Arm Ethos-U driver header */
 #include "log_macros.h"             /* Logging macros */
 
 /** Structure to maintain data cache states. */
-typedef struct _cpu_cache_state {
+typedef struct _cpu_cache_state
+{
     uint32_t dcache_invalidated : 1;
     uint32_t dcache_cleaned : 1;
 } cpu_cache_state;
@@ -47,14 +48,14 @@ static cpu_cache_state s_cache_state = {.dcache_cleaned = 0, .dcache_invalidated
  * @brief   Gets the current CPU cache state.
  * @return  Pointer to the CPU cache state object.
  */
-static cpu_cache_state* ethosu_get_cpu_cache_state(void)
+static cpu_cache_state *ethosu_get_cpu_cache_state(void)
 {
     return &s_cache_state;
 }
 
 void ethosu_clear_cache_states(void)
 {
-    cpu_cache_state* const state = ethosu_get_cpu_cache_state();
+    cpu_cache_state *const state = ethosu_get_cpu_cache_state();
     trace("Clearing cache state members\n");
     state->dcache_invalidated = 0;
     state->dcache_cleaned     = 0;
@@ -65,8 +66,9 @@ void ethosu_flush_dcache(uint32_t *p, size_t bytes)
     UNUSED(p);
     UNUSED(bytes);
 #if defined (__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-    cpu_cache_state* const state = ethosu_get_cpu_cache_state();
-    if (SCB->CCR & SCB_CCR_DC_Msk) {
+    cpu_cache_state *const state = ethosu_get_cpu_cache_state();
+    if (SCB->CCR & SCB_CCR_DC_Msk)
+    {
 
         /**
          * @note We could choose to call the `SCB_CleanDCache_by_Addr` function
@@ -86,7 +88,8 @@ void ethosu_flush_dcache(uint32_t *p, size_t bytes)
          */
 
         /** Clean the cache if it hasn't been cleaned already  */
-        if (!state->dcache_cleaned) {
+        if (!state->dcache_cleaned)
+        {
             trace("Cleaning data cache\n");
             SCB_CleanDCache();
 
@@ -104,13 +107,15 @@ void ethosu_invalidate_dcache(uint32_t *p, size_t bytes)
     UNUSED(p);
     UNUSED(bytes);
 #if defined (__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-    cpu_cache_state* const state = ethosu_get_cpu_cache_state();
-    if (SCB->CCR & SCB_CCR_DC_Msk) {
+    cpu_cache_state *const state = ethosu_get_cpu_cache_state();
+    if (SCB->CCR & SCB_CCR_DC_Msk)
+    {
         /**
          * See note in ethosu_flush_dcache function for why we clean the whole
          * cache instead of calling it for specific addresses.
          **/
-        if (!state->dcache_invalidated) {
+        if (!state->dcache_invalidated)
+        {
             trace("Invalidating data cache\n");
             SCB_InvalidateDCache();
 

@@ -17,7 +17,7 @@
 
 #include "ethosu_npu_init.h"
 
-#include "RTE_Components.h"         /* For CPU related defintiions */
+#include "NuMicro.h"                /* For CPU related defintiions */
 #include "log_macros.h"             /* Logging functions */
 
 #include "ethosu_mem_config.h"      /* Arm Ethos-U memory config */

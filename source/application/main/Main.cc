@@ -29,7 +29,7 @@
 extern void main_loop();
 
 #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
-__ASM(" .global __ARM_use_no_argv\n");
+    __ASM(" .global __ARM_use_no_argv\n");
 #endif
 
 /* Print application information. */
@@ -40,9 +40,11 @@ static void print_application_intro()
     info("Copyright 2021-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>\n\n");
 }
 
-int main ()
+int mlevk_go(void)
 {
-    if (hal_platform_init()) {
+    info("%s %s %d\n", __FILE__, __func__, __LINE__);
+    if (hal_platform_init())
+    {
         /* Application information, UART should have been initialised. */
         print_application_intro();
 
@@ -58,5 +60,7 @@ int main ()
 
     /* Release platform. */
     hal_platform_release();
+
     return 0;
 }
+MSH_CMD_EXPORT(mlevk_go, Start MLEVK);

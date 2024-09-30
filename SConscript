@@ -7,6 +7,7 @@ inc = []
 group = []
 cwd = GetCurrentDir() # get current dir path
 
+
 def check_h_hpp_exists(path):
     file_dirs = os.listdir(path)
     for file_dir in file_dirs:
@@ -15,24 +16,12 @@ def check_h_hpp_exists(path):
     return False
 
 mlevk_cwd = cwd
+dependencies_cwd = os.path.join(mlevk_cwd, 'dependencies')
 
+'''
 mlevk_subdir = [
-    #'source/',
-    'dependencies/cmsis-dsp',
-    'dependencies/cmsis-nn',
-    #'dependencies/tensorflow',
-    #'dependencies/cmsis-dsp/PrivateInclude',
-    #'dependencies/cmsis-dsp/Include',
-    #'dependencies/cmsis-dsp/Source/TransformFunctions',
-    #'dependencies/cmsis-dsp/Source/BasicMathFunctions',
-    #'dependencies/cmsis-dsp/Source/CommonTables',
-    #'dependencies/cmsis-dsp/Source/ComplexMathFunctions',
-    #'dependencies/cmsis-dsp/Source/FastMathFunctions',
-    #'dependencies/cmsis-dsp/Source/StatisticsFunctions',
-    #'dependencies/cmsis-dsp/Source/StatisticsFunctions',
-    #'dependencies/cmsis-nn/Source',
-    #'dependencies/cmsis-nn/Include',
-    #'dependencies/tensorflow',
+    dependencies_cwd + 'cmsis-dsp',
+    dependencies_cwd + 'cmsis-nn',
 ]
 
 # ml-embedded-evaluation-kit-source
@@ -68,14 +57,409 @@ for subdir in mlevk_subdir:
                     inc = inc + [current_path]
                 if check_h_hpp_exists(root): # add .h and .hpp path
                     inc = inc + [root]
+'''
 
-inc = inc + [
-    cwd + '/dependencies/cmsis-nn/',
-    cwd + '/dependencies/tensorflow/',
-    cwd + '/dependencies/tensorflow/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include/',
-    cwd + '/dependencies/tensorflow/tensorflow/lite/micro/tools/make/downloads/gemmlowp/',
-    cwd + '/dependencies/tensorflow/tensorflow/lite/micro/tools/make/downloads/ruy/',
-    cwd + '/dependencies/tensorflow/tensorflow/lite/micro/tools/make/downloads/kissfft/',
+
+dependencies_npu_drv_cwd = os.path.join(dependencies_cwd, 'core-driver')
+npu_drv_INCS = [
+    dependencies_npu_drv_cwd + '/include',
+]
+npu_drv_SRCS = Split("""
+dependencies/core-driver/src/ethosu_device_u55_u65.c
+dependencies/core-driver/src/ethosu_driver.c
+dependencies/core-driver/src/ethosu_pmu.c
+""")
+src += npu_drv_SRCS
+inc += npu_drv_INCS
+
+dependencies_cmsis_nn_cwd = os.path.join(dependencies_cwd, 'cmsis-nn')
+cmsis_nn_INCS = [
+    dependencies_cmsis_nn_cwd,
+    dependencies_cmsis_nn_cwd + '/Include',
+]
+cmsis_nn_SRCS = Split("""
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_mul_s16_batch_offset.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_add_s8.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_mul_s16.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_mul_s8.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_mul_acc_s16.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_add_s16.c
+dependencies/cmsis-nn/Source/BasicMathFunctions/arm_elementwise_mul_s16_s8.c
+dependencies/cmsis-nn/Source/ActivationFunctions/arm_nn_activation_s16.c
+dependencies/cmsis-nn/Source/ActivationFunctions/arm_relu_q15.c
+dependencies/cmsis-nn/Source/ActivationFunctions/arm_relu_q7.c
+dependencies/cmsis-nn/Source/ActivationFunctions/arm_relu6_s8.c
+dependencies/cmsis-nn/Source/SVDFunctions/arm_svdf_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/SVDFunctions/arm_svdf_state_s16_s8.c
+dependencies/cmsis-nn/Source/SVDFunctions/arm_svdf_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_s4.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_batch_matmul_s16.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_s16.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s16.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_vector_sum_s8_s64.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_batch_matmul_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_vector_sum_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s8.c
+dependencies/cmsis-nn/Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_depthwise_conv_s8_core.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1x1_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_transpose_conv_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_mat_mult_kernel_row_offset_s8_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1_x_n_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_mat_mult_kernel_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_wrapper_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_3x3_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1x1_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1x1_s4_fast.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_mat_mult_kernel_s4_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_mat_mult_kernel_s8_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_s4_opt.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_transpose_conv_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_1_x_n_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_fast_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_nn_mat_mult_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_even_s4.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_convolve_wrapper_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s16.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s8.c
+dependencies/cmsis-nn/Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mult_nt_interleaved_t_even_s4.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mul_result_acc_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_per_ch_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mul_result_acc_s8_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_padded_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mul_core_1x_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nntables.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_lstm_step_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_q7_to_q15_with_offset.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s4.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s4.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s4.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s16_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_svdf_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s8_s32.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mul_core_1x_s4.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_s8_to_s16_unordered_with_offset.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s8_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_lstm_step_s16.c
+dependencies/cmsis-nn/Source/NNSupportFunctions/arm_nn_mat_mul_core_4x_s8.c
+dependencies/cmsis-nn/Source/ReshapeFunctions/arm_reshape_s8.c
+dependencies/cmsis-nn/Source/ConcatenationFunctions/arm_concatenation_s8_y.c
+dependencies/cmsis-nn/Source/ConcatenationFunctions/arm_concatenation_s8_x.c
+dependencies/cmsis-nn/Source/ConcatenationFunctions/arm_concatenation_s8_z.c
+dependencies/cmsis-nn/Source/ConcatenationFunctions/arm_concatenation_s8_w.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_avgpool_s8.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_max_pool_s16.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_max_pool_s8.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s8.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_avgpool_s16.c
+dependencies/cmsis-nn/Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s16.c
+dependencies/cmsis-nn/Source/LSTMFunctions/arm_lstm_unidirectional_s16.c
+dependencies/cmsis-nn/Source/LSTMFunctions/arm_lstm_unidirectional_s8.c
+dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_s8.c
+dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c
+dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_u8.c
+dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_s8_s16.c
+dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_s16.c
+""")
+src += cmsis_nn_SRCS
+inc += cmsis_nn_INCS
+
+
+dependencies_cmsis_dsp_cwd = os.path.join(dependencies_cwd, 'cmsis-dsp')
+cmsis_dsp_INCS = [
+    dependencies_cmsis_dsp_cwd,
+    dependencies_cmsis_dsp_cwd + '/Include',
+]
+cmsis_dsp_SRCS = Split("""
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_bitreversal_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_f64.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_init_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix8_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_init_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_bitreversal.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_init_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_bitreversal2.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_init_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_init_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_init_f64.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_init_f64.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_mfcc_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix4_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix8_f16.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_f64.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_rfft_fast_init_f32.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_init_q15.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_cfft_radix2_init_q31.c
+dependencies/cmsis-dsp/Source/TransformFunctions/arm_dct4_q15.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_conj_f32.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_dot_prod_f32.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_mag_f32.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_mult_real_f32.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_mag_squared_f32.c
+dependencies/cmsis-dsp/Source/ComplexMathFunctions/arm_cmplx_mult_cmplx_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vlog_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_sin_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_cos_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_atan2_f16.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_atan2_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_cos_q15.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vlog_f16.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_divide_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_sqrt_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vexp_f16.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_atan2_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vlog_f64.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vexp_f64.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vlog_q15.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_sin_q15.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vexp_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_sqrt_q15.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vlog_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_divide_q15.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_vinverse_f16.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_sin_f32.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_cos_q31.c
+dependencies/cmsis-dsp/Source/FastMathFunctions/arm_atan2_q15.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_const_structs_f16.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_common_tables_f16.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_mve_tables_f16.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_common_tables.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_const_structs.c
+dependencies/cmsis-dsp/Source/CommonTables/arm_mve_tables.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_shift_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_clip_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_clip_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_xor_u32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_not_u8.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_not_u16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_or_u32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_shift_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_and_u16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_xor_u8.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_clip_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_not_u32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_or_u16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_shift_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_clip_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_f64.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_xor_u16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_clip_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_sub_q7.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_or_u8.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_q15.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_mult_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_abs_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_scale_f32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_negate_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_offset_q31.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_and_u8.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_and_u32.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_dot_prod_f16.c
+dependencies/cmsis-dsp/Source/BasicMathFunctions/arm_add_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_kullback_leibler_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_entropy_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_rms_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_accumulate_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_std_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_logsumexp_dot_prod_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_entropy_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_std_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_rms_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_kullback_leibler_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_logsumexp_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_accumulate_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_std_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_rms_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_logsumexp_dot_prod_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_std_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_entropy_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_power_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_logsumexp_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_no_idx_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mse_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_accumulate_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_rms_q31.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_std_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_q15.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_f32.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmin_no_idx_q7.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_absmax_no_idx_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_mean_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_kullback_leibler_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_f64.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_f16.c
+dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_q15.c
+""")
+src += cmsis_dsp_SRCS
+inc += cmsis_dsp_INCS
+
+dependencies_tflm_cwd = os.path.join(dependencies_cwd, 'tensorflow')
+tflm_INCS = [
+    dependencies_tflm_cwd,
+    dependencies_tflm_cwd + '/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include',
+    dependencies_tflm_cwd + '/tensorflow/lite/micro/tools/make/downloads/gemmlowp',
+    dependencies_tflm_cwd + '/tensorflow/lite/micro/tools/make/downloads/ruy',
+    dependencies_tflm_cwd + '/tensorflow/lite/micro/tools/make/downloads/kissfft',
 ]
 
 tflm_SRCS = Split("""
@@ -103,7 +487,6 @@ dependencies/tensorflow/tensorflow/lite/micro/arena_allocator/recording_single_a
 dependencies/tensorflow/tensorflow/lite/micro/arena_allocator/single_arena_buffer_allocator.cc
 dependencies/tensorflow/tensorflow/lite/micro/arena_allocator/persistent_arena_buffer_allocator.cc
 dependencies/tensorflow/tensorflow/lite/micro/fake_micro_context.cc
-dependencies/tensorflow/tensorflow/lite/micro/span_test.cc
 dependencies/tensorflow/tensorflow/lite/micro/system_setup.cc
 dependencies/tensorflow/tensorflow/lite/micro/micro_profiler.cc
 dependencies/tensorflow/tensorflow/lite/micro/test_helper_custom_ops.cc
@@ -121,7 +504,6 @@ dependencies/tensorflow/tensorflow/lite/micro/micro_resource_variable.cc
 dependencies/tensorflow/tensorflow/lite/micro/flatbuffer_utils.cc
 dependencies/tensorflow/tensorflow/lite/micro/micro_allocation_info.cc
 dependencies/tensorflow/tensorflow/lite/micro/micro_op_resolver.cc
-dependencies/tensorflow/tensorflow/lite/micro/static_vector_test.cc
 dependencies/tensorflow/tensorflow/lite/micro/cortex_m_generic/micro_time.cc
 dependencies/tensorflow/tensorflow/lite/micro/cortex_m_generic/debug_log.cc
 dependencies/tensorflow/tensorflow/lite/micro/memory_helpers.cc
@@ -272,11 +654,88 @@ dependencies/tensorflow/signal/micro/kernels/delay.cc
 dependencies/tensorflow/signal/micro/kernels/stacker.cc
 dependencies/tensorflow/signal/micro/kernels/filter_bank_spectral_subtraction.cc
 """)
+#dependencies/tensorflow/tensorflow/lite/micro/static_vector_test.cc
+#dependencies/tensorflow/tensorflow/lite/micro/span_test.cc
 
 src += tflm_SRCS
+inc += tflm_INCS
+
+mlevk_source_cwd = os.path.join(cwd, 'source')
+mlevk_INCS = [
+    mlevk_source_cwd + '/application/main/include',
+    mlevk_source_cwd + '/application/api/common/include',
+    mlevk_source_cwd + '/hal/include/',
+    mlevk_source_cwd + '/hal/source/platform/rtthread/include',
+    mlevk_source_cwd + '/hal/source/components/platform_pmu/include',
+    mlevk_source_cwd + '/hal/source/components/lcd/include',
+    mlevk_source_cwd + '/hal/source/components/lcd/source',
+    mlevk_source_cwd + '/hal/source/components/stdout/include',
+    mlevk_source_cwd + '/hal/source/components/npu/include',
+    mlevk_source_cwd + '/log/include/',
+    mlevk_source_cwd + '/math/include/',
+    mlevk_source_cwd + '/profiler/include/',
+]
+
+mlevk_SRCS = Split("""
+source/application/main/Main.cc
+source/application/main/UseCaseCommonUtils.cc
+source/application/api/common/source/Model.cc
+source/application/api/common/source/ImageUtils.cc
+source/application/api/common/source/Mfcc.cc
+source/application/api/common/source/Classifier.cc
+source/application/api/common/source/TensorFlowLiteMicro.cc
+source/hal/source/components/stdout/source/user_input.c
+source/hal/source/components/lcd/source/glcd_stubs/glcd_stubs.c
+source/hal/source/components/lcd/source/lcd_img.c
+source/hal/source/components/npu/ethosu_cpu_cache.c
+source/hal/source/components/npu/ethosu_npu_init.c
+source/hal/source/components/npu/ethosu_profiler.c
+source/hal/source/hal.c
+source/hal/source/hal_pmu.c
+source/hal/source/platform/rtthread/source/platform_drivers.c
+source/hal/source/platform/rtthread/source/timer_native.c
+source/math/PlatformMath.cc
+source/profiler/Profiler.cc
+""")
+src += mlevk_SRCS
+inc += mlevk_INCS
+
+
+#USE_CASE
+mlevk_use_case_cwd = os.path.join(cwd, 'source', 'use_case')
+mlevk_use_case_INCS = [
+    mlevk_use_case_cwd + '/object_detection/include',
+    mlevk_source_cwd + '/application/api/use_case/object_detection/include',
+    mlevk_cwd + '/ethos-u55-256-gnu_generated/object_detection/include',
+]
+
+mlevk_use_case_SRCS = Split("""
+source/use_case/object_detection/src/MainLoop.cc
+source/use_case/object_detection/src/UseCaseHandler.cc
+source/application/api/use_case/object_detection/src/DetectorPostProcessing.cc
+source/application/api/use_case/object_detection/src/DetectorPreProcessing.cc
+source/application/api/use_case/object_detection/src/YoloFastestModel.cc
+ethos-u55-256-gnu_generated/object_detection/src/yolo-fastest_192_face_v4_vela_H256.tflite.cc
+ethos-u55-256-gnu_generated/object_detection/src/pitch_and_roll.cc
+ethos-u55-256-gnu_generated/object_detection/src/man_and_baby.cc
+ethos-u55-256-gnu_generated/object_detection/src/InputFiles.cc
+ethos-u55-256-gnu_generated/object_detection/src/glasses.cc
+ethos-u55-256-gnu_generated/object_detection/src/couple.cc
+""")
+src += mlevk_use_case_SRCS
+inc += mlevk_use_case_INCS
+
+MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
+NPU_FLAGS=' -DETHOSU55=1 -DARM_NPU -DETHOSU_ARCH=u55 -DETHOSU_MACS=256 -DETHOSU=1 -DETHOS_U_BASE_ADDR=0x40003000 -DETHOS_U_IRQN=13 -DETHOS_U_SEC_ENABLED=1 -DETHOS_U_PRIV_ENABLED=1 '
+MLVER = ' -DPRJ_VER_STR=\\\"24.08.0\\\" -DPRJ_DES_STR=\\\"ARM_ML_Embedded_Evaluation_Kit\\\" '
+
+MLEVK_FLAGS = NPU_FLAGS + MODEL_FLAGS + MLVER
 
 LOCAL_CFLAGS = ' -std=c99 '
-LOCAL_CXXFLAGS = ' -std=c++17 -DCMSIS_NN=1 -DARM_MODEL_USE_PMU_COUNTERS=1 -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\" -DNDEBUG=1  -DETHOSU=1 -DFLATBUFFERS_LOCALE_INDEPENDENT=0 '
+LOCAL_CXXFLAGS = ' -std=c++17 -Wno-psabi -DARM_MATH_LOOPUNROLL -D__ARM_FEATURE_DSP=1 -DCMSIS_NN=1 -DARM_MODEL_USE_PMU_COUNTERS=1  -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\" -DNDEBUG=1 -DFLATBUFFERS_LOCALE_INDEPENDENT=0 '
+
+LOCAL_CFLAGS = LOCAL_CFLAGS + MLEVK_FLAGS
+LOCAL_CXXFLAGS = LOCAL_CXXFLAGS + MLEVK_FLAGS
 
 group = group + DefineGroup('MLEVK', src, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = inc, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
