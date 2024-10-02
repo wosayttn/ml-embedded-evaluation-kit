@@ -20,7 +20,7 @@
 #include "platform_pmu.h"
 
 #include <stdint.h>
-#include <time.h>
+#include "sys/time.h"
 
 /**
  * @brief   Resets the counters.

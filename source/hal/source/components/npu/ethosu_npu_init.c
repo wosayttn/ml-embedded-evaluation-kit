@@ -18,6 +18,7 @@
 #include "ethosu_npu_init.h"
 
 #include "NuMicro.h"                /* For CPU related defintiions */
+#include "rtdevice.h"                /* For CPU related defintiions */
 #include "log_macros.h"             /* Logging functions */
 
 #include "ethosu_mem_config.h"      /* Arm Ethos-U memory config */
@@ -25,25 +26,25 @@
 
 /* Mandatory definition checks. */
 #if !defined(ETHOS_U_BASE_ADDR)
-#error "NPU base address is undefined."
+    #error "NPU base address is undefined."
 #endif /* defnied(ETHOS_U_BASE_ADDR) */
 
 #if !defined(ETHOS_U_IRQN)
-#error "Arm NPU interrupt number is undefined."
+    #error "Arm NPU interrupt number is undefined."
 #endif /* !defined(ETHOS_U_IRQN) */
 
 #if !defined(ETHOS_U_SEC_ENABLED)
-#error "Arm NPU security mode is undefined."
+    #error "Arm NPU security mode is undefined."
 #endif /* !defined(ETHOS_U_SEC_ENABLED) */
 
 #if !defined(ETHOS_U_PRIV_ENABLED)
-#error "Arm NPU privilege mode is undefined."
+    #error "Arm NPU privilege mode is undefined."
 #endif /* !defined(ETHOS_U_PRIV_ENABLED) */
 
 #if defined(ETHOS_U_CACHE_BUF_SZ) && (ETHOS_U_CACHE_BUF_SZ > 0)
-static uint8_t cache_arena[ETHOS_U_CACHE_BUF_SZ] CACHE_BUF_ATTRIBUTE;
+    static uint8_t cache_arena[ETHOS_U_CACHE_BUF_SZ] CACHE_BUF_ATTRIBUTE;
 #else  /* defined (ETHOS_U_CACHE_BUF_SZ) && (ETHOS_U_CACHE_BUF_SZ > 0) */
-static uint8_t *cache_arena = NULL;
+    static uint8_t *cache_arena = NULL;
 #endif /* defined (ETHOS_U_CACHE_BUF_SZ) && (ETHOS_U_CACHE_BUF_SZ > 0) */
 
 struct ethosu_driver ethosu_drv; /* Default Ethos-U device driver */
@@ -71,23 +72,28 @@ static void arm_ethosu_npu_irq_init(void)
 
     /* Register the EthosU IRQ handler in our vector table.
      * Note, this handler comes from the EthosU driver */
-    NVIC_SetVector(ethosu_irqnum, (uint32_t)arm_ethosu_npu_irq_handler);
+    //NVIC_SetVector(ethosu_irqnum, (uint32_t)arm_ethosu_npu_irq_handler);
 
     /* Enable the IRQ */
     NVIC_EnableIRQ(ethosu_irqnum);
 
-    debug("EthosU IRQ#: %u, Handler: 0x%p\n",
-          ethosu_irqnum, arm_ethosu_npu_irq_handler);
+    debug("EthosU IRQ#: %u\n", ethosu_irqnum);
 }
 
 /**
  * @brief   Defines the Ethos-U interrupt handler: just a wrapper around the default
  *          implementation.
  **/
-void arm_ethosu_npu_irq_handler(void)
+void NPU_IRQHandler(void)
 {
+    /* enter interrupt */
+    rt_interrupt_enter();
+
     /* Call the default interrupt handler from the NPU driver */
     ethosu_irq_handler(&ethosu_drv);
+
+    /* leave interrupt */
+    rt_interrupt_leave();
 }
 
 int arm_ethosu_npu_init(void)
@@ -98,7 +104,7 @@ int arm_ethosu_npu_init(void)
     arm_ethosu_npu_irq_init();
 
     /* Initialise Ethos-U device */
-    void* const ethosu_base_address = (void *)(ETHOS_U_BASE_ADDR);
+    void *const ethosu_base_address = (void *)(ETHOS_U_BASE_ADDR);
     info("Initialising Ethos-U device@0x%" PRIx32 "\n", ETHOS_U_BASE_ADDR);
 
     if (0 != (err = ethosu_init(&ethosu_drv,         /* Ethos-U driver device pointer */
@@ -106,7 +112,8 @@ int arm_ethosu_npu_init(void)
                                 get_cache_arena(),   /* Pointer to fast mem area - NULL for U55. */
                                 get_cache_arena_size(), /* Fast mem region size. */
                                 ETHOS_U_SEC_ENABLED,    /* Security enable. */
-                                ETHOS_U_PRIV_ENABLED))) /* Privilege enable. */ {
+                                ETHOS_U_PRIV_ENABLED))) /* Privilege enable. */
+    {
         printf_err("Failed to initialise Ethos-U device\n");
         return err;
     }
@@ -133,4 +140,11 @@ int arm_ethosu_npu_init(void)
     info("\tCmd stream: v%" PRIu32 "\n", hw_info.cfg.cmd_stream_version);
 
     return 0;
+}
+
+void arm_ethosu_npu_deinit(void)
+{
+    info("Finalize Ethos-U device@0x%" PRIx32 "\n", ETHOS_U_BASE_ADDR);
+
+    ethosu_deinit(&ethosu_drv);
 }

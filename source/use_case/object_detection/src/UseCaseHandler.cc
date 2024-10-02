@@ -165,8 +165,8 @@ namespace app {
                 results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
 
 #if VERIFY_TEST_OUTPUT
-            DumpTensor(modelOutput0);
-            DumpTensor(modelOutput1);
+            DumpTensor(outputTensor0);
+            DumpTensor(outputTensor1);
 #endif /* VERIFY_TEST_OUTPUT */
 
             if (!PresentInferenceResult(results)) {

@@ -19,8 +19,6 @@ extern "C" {
 #endif
 
 #include "timer_native.h"
-
-#include <time.h>
 #include <string.h>
 
 #define MILLISECONDS_IN_SECOND      1000
@@ -30,11 +28,12 @@ extern "C" {
 
 void platform_reset_counters() { /* Nothing to do */ }
 
-void platform_get_counters(pmu_counters* counters)
+void platform_get_counters(pmu_counters *counters)
 {
     struct timespec current_time;
     counters->num_counters = 0;
     counters->initialised = true;
+
     clock_gettime(1, &current_time);
     uint64_t microseconds = (current_time.tv_sec * MICROSECONDS_IN_SECOND) +
                             (current_time.tv_nsec / NANOSECONDS_IN_MICROSECOND);

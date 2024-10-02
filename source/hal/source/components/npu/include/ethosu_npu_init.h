@@ -26,6 +26,12 @@
 int arm_ethosu_npu_init(void);
 
 /**
+ * @brief   Finalize the Arm Ethos-U NPU
+ * @return  None
+ **/
+void arm_ethosu_npu_deinit(void);
+
+/**
  * @brief   Defines the Arm Ethos-U NPU interrupt handler: just a wrapper
  *          around the default implementation.
  **/

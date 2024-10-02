@@ -41,7 +41,8 @@ static void DisplayDetectionMenu()
     printf("  %u. Run detection ifm at chosen index\n", common::MENU_OPT_RUN_INF_CHOSEN);
     printf("  %u. Run detection on all ifm\n", common::MENU_OPT_RUN_INF_ALL);
     printf("  %u. Show NN model info\n", common::MENU_OPT_SHOW_MODEL_INFO);
-    printf("  %u. List ifm\n\n", common::MENU_OPT_LIST_IFM);
+    printf("  %u. List ifm\n", common::MENU_OPT_LIST_IFM);
+    printf("  %u. Quit\n\n", common::MENU_OPT_QUIT);
     printf("  Choice: ");
     fflush(stdout);
 }
@@ -98,6 +99,9 @@ void main_loop()
                 break;
             case common::MENU_OPT_LIST_IFM:
                 executionSuccessful = ListFilesHandler(caseContext);
+                break;
+            case common::MENU_OPT_QUIT:
+                executionSuccessful = false;
                 break;
             default:
                 printf("Incorrect choice, try again.");

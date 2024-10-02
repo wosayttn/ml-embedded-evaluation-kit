@@ -654,8 +654,6 @@ dependencies/tensorflow/signal/micro/kernels/delay.cc
 dependencies/tensorflow/signal/micro/kernels/stacker.cc
 dependencies/tensorflow/signal/micro/kernels/filter_bank_spectral_subtraction.cc
 """)
-#dependencies/tensorflow/tensorflow/lite/micro/static_vector_test.cc
-#dependencies/tensorflow/tensorflow/lite/micro/span_test.cc
 
 src += tflm_SRCS
 inc += tflm_INCS
@@ -687,7 +685,7 @@ source/application/api/common/source/TensorFlowLiteMicro.cc
 source/hal/source/components/stdout/source/user_input.c
 source/hal/source/components/lcd/source/glcd_stubs/glcd_stubs.c
 source/hal/source/components/lcd/source/lcd_img.c
-source/hal/source/components/npu/ethosu_cpu_cache.c
+source/hal/source/components/npu/ethosu_impl_rtt.c
 source/hal/source/components/npu/ethosu_npu_init.c
 source/hal/source/components/npu/ethosu_profiler.c
 source/hal/source/hal.c
@@ -700,39 +698,68 @@ source/profiler/Profiler.cc
 src += mlevk_SRCS
 inc += mlevk_INCS
 
+#USE_CASE COMMON
+mlevk_uc_cwd = os.path.join(cwd, 'source', 'use_case')
+mlevk_uc_INCS = []
+mlevk_uc_SRCS = []
+MODEL_FLAGS = ''
 
-#USE_CASE
-mlevk_use_case_cwd = os.path.join(cwd, 'source', 'use_case')
-mlevk_use_case_INCS = [
-    mlevk_use_case_cwd + '/object_detection/include',
-    mlevk_source_cwd + '/application/api/use_case/object_detection/include',
-    mlevk_cwd + '/ethos-u55-256-gnu_generated/object_detection/include',
-]
+#MLEVK_UC_OBJECT_DETECTION
+if GetDepend('MLEVK_UC_OBJECT_DETECTION'):
 
-mlevk_use_case_SRCS = Split("""
-source/use_case/object_detection/src/MainLoop.cc
-source/use_case/object_detection/src/UseCaseHandler.cc
-source/application/api/use_case/object_detection/src/DetectorPostProcessing.cc
-source/application/api/use_case/object_detection/src/DetectorPreProcessing.cc
-source/application/api/use_case/object_detection/src/YoloFastestModel.cc
-ethos-u55-256-gnu_generated/object_detection/src/yolo-fastest_192_face_v4_vela_H256.tflite.cc
-ethos-u55-256-gnu_generated/object_detection/src/pitch_and_roll.cc
-ethos-u55-256-gnu_generated/object_detection/src/man_and_baby.cc
-ethos-u55-256-gnu_generated/object_detection/src/InputFiles.cc
-ethos-u55-256-gnu_generated/object_detection/src/glasses.cc
-ethos-u55-256-gnu_generated/object_detection/src/couple.cc
-""")
-src += mlevk_use_case_SRCS
-inc += mlevk_use_case_INCS
+    mlevk_uc_INCS = [
+        mlevk_uc_cwd + '/object_detection/include',
+        mlevk_source_cwd + '/application/api/use_case/object_detection/include',
+        mlevk_cwd + '/ethos-u55-256-gnu_generated/object_detection/include',
+    ]
 
-MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
-NPU_FLAGS=' -DETHOSU55=1 -DARM_NPU -DETHOSU_ARCH=u55 -DETHOSU_MACS=256 -DETHOSU=1 -DETHOS_U_BASE_ADDR=0x40003000 -DETHOS_U_IRQN=13 -DETHOS_U_SEC_ENABLED=1 -DETHOS_U_PRIV_ENABLED=1 '
+    mlevk_uc_SRCS = Split("""
+    source/use_case/object_detection/src/MainLoop.cc
+    source/use_case/object_detection/src/UseCaseHandler.cc
+    source/application/api/use_case/object_detection/src/DetectorPostProcessing.cc
+    source/application/api/use_case/object_detection/src/DetectorPreProcessing.cc
+    source/application/api/use_case/object_detection/src/YoloFastestModel.cc
+    ethos-u55-256-gnu_generated/object_detection/src/yolo-fastest_192_face_v4_vela_H256.tflite.cc
+    ethos-u55-256-gnu_generated/object_detection/src/pitch_and_roll.cc
+    ethos-u55-256-gnu_generated/object_detection/src/man_and_baby.cc
+    ethos-u55-256-gnu_generated/object_detection/src/InputFiles.cc
+    ethos-u55-256-gnu_generated/object_detection/src/glasses.cc
+    ethos-u55-256-gnu_generated/object_detection/src/couple.cc
+    """)
+    MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
+
+elif GetDepend('MLEVK_UC_VWW'):
+
+    mlevk_uc_INCS = [
+        mlevk_uc_cwd + '/vww/include',
+        mlevk_source_cwd + '/application/api/use_case/vww/include',
+        mlevk_cwd + '/ethos-u55-256-gnu_generated/vww/include',
+    ]
+
+    mlevk_uc_SRCS = Split("""
+    source/use_case/vww/src/MainLoop.cc
+    source/use_case/vww/src/UseCaseHandler.cc
+    source/application/api/use_case/vww/src/VisualWakeWordModel.cc
+    source/application/api/use_case/vww/src/VisualWakeWordProcessing.cc
+    ethos-u55-256-gnu_generated/vww/src/InputFiles.cc
+    ethos-u55-256-gnu_generated/vww/src/Labels.cc
+    ethos-u55-256-gnu_generated/vww/src/st_paul_s_cathedral.cc
+    ethos-u55-256-gnu_generated/vww/src/vww4_128_128_INT8_vela_H256.tflite.cc
+    ethos-u55-256-gnu_generated/vww/src/man_in_red_jacket.cc
+    """)
+    MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00200000 '
+
+src += mlevk_uc_SRCS
+inc += mlevk_uc_INCS
+
+# M55M1/TC8263
+NPU_FLAGS=' -DETHOSU55=1 -DARM_NPU -DETHOSU_ARCH=u55  -DCMSIS_NN=1 -DETHOSU_MACS=256 -DETHOSU=1 -DETHOS_U_BASE_ADDR=0x40003000 -DETHOS_U_IRQN=13 -DETHOS_U_SEC_ENABLED=1 -DETHOS_U_PRIV_ENABLED=1 -DNDEBUG=1 -DFLATBUFFERS_LOCALE_INDEPENDENT=0 '
 MLVER = ' -DPRJ_VER_STR=\\\"24.08.0\\\" -DPRJ_DES_STR=\\\"ARM_ML_Embedded_Evaluation_Kit\\\" '
 
 MLEVK_FLAGS = NPU_FLAGS + MODEL_FLAGS + MLVER
 
 LOCAL_CFLAGS = ' -std=c99 '
-LOCAL_CXXFLAGS = ' -std=c++17 -Wno-psabi -DARM_MATH_LOOPUNROLL -D__ARM_FEATURE_DSP=1 -DCMSIS_NN=1 -DARM_MODEL_USE_PMU_COUNTERS=1  -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\" -DNDEBUG=1 -DFLATBUFFERS_LOCALE_INDEPENDENT=0 '
+LOCAL_CXXFLAGS = ' -std=c++17 -Wno-psabi -DARM_MATH_LOOPUNROLL -D__ARM_FEATURE_DSP=1 -DARM_MODEL_USE_PMU_COUNTERS=1  -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\"'
 
 LOCAL_CFLAGS = LOCAL_CFLAGS + MLEVK_FLAGS
 LOCAL_CXXFLAGS = LOCAL_CXXFLAGS + MLEVK_FLAGS

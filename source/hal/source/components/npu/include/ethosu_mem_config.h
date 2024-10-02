@@ -22,7 +22,7 @@
 #define ETHOS_U_NPU_MEMORY_MODE_SHARED_SRAM         1
 #define ETHOS_U_NPU_MEMORY_MODE_DEDICATED_SRAM      2
 
-#define ETHOS_U_MEM_BYTE_ALIGNMENT                  16
+#define ETHOS_U_MEM_BYTE_ALIGNMENT                  32
 
 #ifndef ETHOS_U_NPU_MEMORY_MODE
     #define ETHOS_U_NPU_MEMORY_MODE                 ETHOS_U_MEMORY_MODE_SHARED_SRAM

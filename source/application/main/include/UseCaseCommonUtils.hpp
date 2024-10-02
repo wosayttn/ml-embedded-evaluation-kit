@@ -61,7 +61,8 @@ namespace common {
         MENU_OPT_RUN_INF_CHOSEN, /* Run on a user provided vector index. */
         MENU_OPT_RUN_INF_ALL, /* Run inference on all. */
         MENU_OPT_SHOW_MODEL_INFO, /* Show model info. */
-        MENU_OPT_LIST_IFM /* List the current IFM. */
+        MENU_OPT_LIST_IFM, /* List the current IFM. */
+        MENU_OPT_QUIT  /* Quit program. */
   };
 
 }

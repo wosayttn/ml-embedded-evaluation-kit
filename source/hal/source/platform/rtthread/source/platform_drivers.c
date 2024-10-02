@@ -20,7 +20,7 @@
 #include <string.h>
 
 #if defined(ARM_NPU)
-#include "ethosu_npu_init.h"
+    #include "ethosu_npu_init.h"
 #endif /* ARM_NPU */
 
 static const char *s_platform_name = "rtthread";
@@ -30,17 +30,6 @@ int platform_init(void)
 #if defined(ARM_NPU)
 
     int state;
-
-    /* If the platform has timing adapter blocks along with Ethos-U core
-     * block, initialise them here. */
-#if defined(ETHOS_U_NPU_TIMING_ADAPTER_ENABLED)
-    int err;
-
-    if (0 != (err = arm_ethosu_timing_adapter_init()))
-    {
-        return err;
-    }
-#endif /* ETHOS_U_NPU_TIMING_ADAPTER_ENABLED */
 
     /* If Arm Ethos-U NPU is to be used, we initialise it here */
     if (0 != (state = arm_ethosu_npu_init()))
@@ -55,6 +44,13 @@ int platform_init(void)
 
 void platform_release(void)
 {
+
+#if defined(ARM_NPU)
+
+    arm_ethosu_npu_deinit();
+
+#endif
+
 }
 
 const char *platform_name(void)

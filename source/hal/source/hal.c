@@ -50,10 +50,8 @@ bool hal_get_user_input(char *user_input, int size)
 {
     if (1 != GetLine(user_input, size - 1))
     {
-        info("%s %s %d\n", __FILE__, __func__, __LINE__);
         return true;
     }
 
-    rt_kprintf("%s %s %d\n", __FILE__, __func__, __LINE__);
     return false;
 }
