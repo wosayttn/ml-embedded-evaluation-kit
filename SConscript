@@ -726,7 +726,6 @@ if GetDepend('MLEVK_UC_OBJECT_DETECTION'):
     ethos-u55-256-gnu_generated/object_detection/src/glasses.cc
     ethos-u55-256-gnu_generated/object_detection/src/couple.cc
     """)
-    MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
 
 elif GetDepend('MLEVK_UC_VWW'):
 
@@ -747,8 +746,8 @@ elif GetDepend('MLEVK_UC_VWW'):
     ethos-u55-256-gnu_generated/vww/src/vww4_128_128_INT8_vela_H256.tflite.cc
     ethos-u55-256-gnu_generated/vww/src/man_in_red_jacket.cc
     """)
-    MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00200000 '
 
+MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
 src += mlevk_uc_SRCS
 inc += mlevk_uc_INCS
 
@@ -759,7 +758,7 @@ MLVER = ' -DPRJ_VER_STR=\\\"24.08.0\\\" -DPRJ_DES_STR=\\\"ARM_ML_Embedded_Evalua
 MLEVK_FLAGS = NPU_FLAGS + MODEL_FLAGS + MLVER
 
 LOCAL_CFLAGS = ' -std=c99 '
-LOCAL_CXXFLAGS = ' -std=c++17 -Wno-psabi -DARM_MATH_LOOPUNROLL -D__ARM_FEATURE_DSP=1 -DARM_MODEL_USE_PMU_COUNTERS=1  -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\"'
+LOCAL_CXXFLAGS = ' -std=c++14 -Wno-psabi -DARM_MATH_LOOPUNROLL -D__ARM_FEATURE_DSP=1 -DARM_MODEL_USE_PMU_COUNTERS=1  -DCMSIS_DEVICE_ARM_CORTEX_M_XX_HEADER_FILE=\\\"NuMicro.h\\\"'
 
 LOCAL_CFLAGS = LOCAL_CFLAGS + MLEVK_FLAGS
 LOCAL_CXXFLAGS = LOCAL_CXXFLAGS + MLEVK_FLAGS
