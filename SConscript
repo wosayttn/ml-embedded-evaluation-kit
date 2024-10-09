@@ -700,52 +700,55 @@ inc += mlevk_INCS
 
 #USE_CASE COMMON
 mlevk_uc_cwd = os.path.join(cwd, 'source', 'use_case')
+mlevk_uc_res_cwd = os.path.join(cwd, 'ethos-u55-256-gnu_generated')
+mlevk_uc_api_cwd = os.path.join(cwd, 'source/application/api/use_case')
 mlevk_uc_INCS = []
 mlevk_uc_SRCS = []
 MODEL_FLAGS = ''
+mlevk_uc_name = ''
 
 #MLEVK_UC_OBJECT_DETECTION
 if GetDepend('MLEVK_UC_OBJECT_DETECTION'):
-
-    mlevk_uc_INCS = [
-        mlevk_uc_cwd + '/object_detection/include',
-        mlevk_source_cwd + '/application/api/use_case/object_detection/include',
-        mlevk_cwd + '/ethos-u55-256-gnu_generated/object_detection/include',
-    ]
-
-    mlevk_uc_SRCS = Split("""
-    source/use_case/object_detection/src/MainLoop.cc
-    source/use_case/object_detection/src/UseCaseHandler.cc
-    source/application/api/use_case/object_detection/src/DetectorPostProcessing.cc
-    source/application/api/use_case/object_detection/src/DetectorPreProcessing.cc
-    source/application/api/use_case/object_detection/src/YoloFastestModel.cc
-    ethos-u55-256-gnu_generated/object_detection/src/yolo-fastest_192_face_v4_vela_H256.tflite.cc
-    ethos-u55-256-gnu_generated/object_detection/src/pitch_and_roll.cc
-    ethos-u55-256-gnu_generated/object_detection/src/man_and_baby.cc
-    ethos-u55-256-gnu_generated/object_detection/src/InputFiles.cc
-    ethos-u55-256-gnu_generated/object_detection/src/glasses.cc
-    ethos-u55-256-gnu_generated/object_detection/src/couple.cc
-    """)
+    mlevk_uc_name = 'object_detection'
 
 elif GetDepend('MLEVK_UC_VWW'):
+    mlevk_uc_name = 'vww'
 
-    mlevk_uc_INCS = [
-        mlevk_uc_cwd + '/vww/include',
-        mlevk_source_cwd + '/application/api/use_case/vww/include',
-        mlevk_cwd + '/ethos-u55-256-gnu_generated/vww/include',
+elif GetDepend('MLEVK_UC_IMAGE_CLASS'):
+    mlevk_uc_name = 'img_class'
+
+elif GetDepend('MLEVK_UC_AD'):
+    mlevk_uc_name = 'ad'
+
+elif GetDepend('MLEVK_UC_INFERENCE_RUNNER'):
+    mlevk_uc_name = 'inference_runner'
+
+elif GetDepend('MLEVK_UC_ASR'):
+    mlevk_uc_name = 'asr'
+
+elif GetDepend('MLEVK_UC_KWS'):
+    mlevk_uc_name = 'kws'
+
+elif GetDepend('MLEVK_UC_KWS_ASR'):
+    mlevk_uc_name = 'kws_asr'
+    mlevk_uc_INCS = mlevk_uc_INCS + [
+        os.path.join(mlevk_uc_api_cwd, 'asr', 'include'),
+        os.path.join(mlevk_uc_api_cwd, 'kws', 'include'),
     ]
+    mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_api_cwd, 'kws', 'src','*.cc'))
+    mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_api_cwd, 'asr', 'src','*.cc'))
 
-    mlevk_uc_SRCS = Split("""
-    source/use_case/vww/src/MainLoop.cc
-    source/use_case/vww/src/UseCaseHandler.cc
-    source/application/api/use_case/vww/src/VisualWakeWordModel.cc
-    source/application/api/use_case/vww/src/VisualWakeWordProcessing.cc
-    ethos-u55-256-gnu_generated/vww/src/InputFiles.cc
-    ethos-u55-256-gnu_generated/vww/src/Labels.cc
-    ethos-u55-256-gnu_generated/vww/src/st_paul_s_cathedral.cc
-    ethos-u55-256-gnu_generated/vww/src/vww4_128_128_INT8_vela_H256.tflite.cc
-    ethos-u55-256-gnu_generated/vww/src/man_in_red_jacket.cc
-    """)
+elif GetDepend('MLEVK_UC_NOISE_REDUCTION'):
+    mlevk_uc_name = 'noise_reduction'
+
+mlevk_uc_INCS = mlevk_uc_INCS + [
+    os.path.join(mlevk_uc_cwd, mlevk_uc_name, 'include'),
+    os.path.join(mlevk_uc_api_cwd, mlevk_uc_name, 'include'),
+    os.path.join(mlevk_uc_res_cwd, mlevk_uc_name, 'include'),
+]
+mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_cwd, mlevk_uc_name, 'src','*.cc'))
+mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_res_cwd, mlevk_uc_name, 'src','*.cc'))
+mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_api_cwd, mlevk_uc_name, 'src','*.cc'))
 
 MODEL_FLAGS=' -DACTIVATION_BUF_SZ=0x00082000 '
 src += mlevk_uc_SRCS
