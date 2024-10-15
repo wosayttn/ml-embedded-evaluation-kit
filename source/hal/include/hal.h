@@ -31,6 +31,7 @@ extern "C" {
 #include "platform_drivers.h"   /* Platform drivers */
 #include "hal_pmu.h"              /* Timer/profiler API */
 #include "hal_lcd.h"            /* LCD functions */
+#include "hal_camera.h"            /* CAMERA functions */
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -55,7 +56,7 @@ void hal_platform_release(void);
  * @param[in]   size        Buffer size in bytes.
  * @return      True if successful, false otherwise.
  */
-bool hal_get_user_input(char* user_input, int size);
+bool hal_get_user_input(char *user_input, int size);
 
 #ifdef __cplusplus
 }

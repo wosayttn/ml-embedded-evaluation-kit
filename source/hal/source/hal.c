@@ -35,6 +35,13 @@ bool hal_platform_init(void)
         return false;
     }
 
+    /* Initialise CAMERA */
+    if (0 != hal_camera_init())
+    {
+        printf_err("hal_camera_init failed\n");
+        return false;
+    }
+
     /* Initialise PMU */
     hal_pmu_init();
 
@@ -43,6 +50,7 @@ bool hal_platform_init(void)
 
 void hal_platform_release(void)
 {
+    hal_camera_fini();
     hal_lcd_fini();
     platform_release();
 }
