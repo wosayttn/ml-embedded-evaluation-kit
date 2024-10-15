@@ -665,8 +665,8 @@ mlevk_INCS = [
     mlevk_source_cwd + '/hal/include/',
     mlevk_source_cwd + '/hal/source/platform/rtthread/include',
     mlevk_source_cwd + '/hal/source/components/platform_pmu/include',
+    mlevk_source_cwd + '/hal/source/components/lcd/source/rtthread',
     mlevk_source_cwd + '/hal/source/components/lcd/include',
-    mlevk_source_cwd + '/hal/source/components/lcd/source',
     mlevk_source_cwd + '/hal/source/components/stdout/include',
     mlevk_source_cwd + '/hal/source/components/npu/include',
     mlevk_source_cwd + '/log/include/',
@@ -683,8 +683,7 @@ source/application/api/common/source/Mfcc.cc
 source/application/api/common/source/Classifier.cc
 source/application/api/common/source/TensorFlowLiteMicro.cc
 source/hal/source/components/stdout/source/user_input.c
-source/hal/source/components/lcd/source/glcd_stubs/glcd_stubs.c
-source/hal/source/components/lcd/source/lcd_img.c
+source/hal/source/components/lcd/source/rtthread/lcd_img.c
 source/hal/source/components/npu/ethosu_impl_rtt.c
 source/hal/source/components/npu/ethosu_npu_init.c
 source/hal/source/components/npu/ethosu_profiler.c

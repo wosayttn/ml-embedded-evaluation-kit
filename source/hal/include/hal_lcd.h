@@ -40,6 +40,7 @@
  * cl = colour
  */
 #define hal_lcd_init()                          lcd_init()
+#define hal_lcd_fini()                          lcd_fini()
 #define hal_lcd_display_image(d,w,h,c,x,y,s)    lcd_display_image(d,w,h,c,x,y,s)
 #define hal_lcd_display_text(s,l,x,y,m)         lcd_display_text(s,l,x,y,m)
 #define hal_lcd_display_box(x,y,w,h,cl)         lcd_display_box(x,y,w,h,cl)

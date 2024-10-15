@@ -28,6 +28,12 @@
 int lcd_init(void);
 
 /**
+ * @brief   Finalize the LCD
+ * @return  0 if successful, error code otherwise.
+ **/
+int lcd_fini(void);
+
+/**
  * @brief       Display a given image on the LCD. This allows displaying 8 bit
  *              single or multi-channel images on the LCD.
  * @param[in]   data        Pointer to start of the image.

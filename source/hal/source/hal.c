@@ -43,6 +43,7 @@ bool hal_platform_init(void)
 
 void hal_platform_release(void)
 {
+    hal_lcd_fini();
     platform_release();
 }
 
