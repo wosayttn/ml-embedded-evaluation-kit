@@ -19,7 +19,6 @@
 #include "log_macros.h"
 #include "rtthread.h"
 #include "drv_ccap.h"
-#include "ccap_demo.h"
 
 //#undef DBG_ENABLE
 #define DBG_LEVEL LOG_LVL_INFO
