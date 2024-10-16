@@ -63,3 +63,34 @@ int mlevk_go(void)
     return 0;
 }
 MSH_CMD_EXPORT(mlevk_go, Start MLEVK);
+
+
+#if defined(MLEVK_UC_LIVE_DEMO)
+
+#define THREAD_PRIORITY   20
+#define THREAD_STACK_SIZE 4096
+#define THREAD_TIMESLICE  5
+
+void mlevk_entry(void *p)
+{
+    mlevk_go();
+}
+
+int mlevk_worker(void)
+{
+    rt_thread_t mlevk_thread = rt_thread_create("mlevk",
+                               mlevk_entry,
+                               RT_NULL,
+                               THREAD_STACK_SIZE,
+                               THREAD_PRIORITY,
+                               THREAD_TIMESLICE);
+
+    if (mlevk_thread != RT_NULL)
+        rt_thread_startup(mlevk_thread);
+
+    return 0;
+}
+INIT_APP_EXPORT(mlevk_worker);
+
+#endif
+

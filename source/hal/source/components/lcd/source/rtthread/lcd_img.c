@@ -121,6 +121,9 @@ static void _DisplayImage(const void *data, const uint32_t width,
         cvt_clr_fn = _Gray8_to_RGB565;
         break;
 
+    case 2:
+        break;
+
     case 3:
         cvt_clr_fn = _RGB888_to_RGB565;
         break;
@@ -131,17 +134,24 @@ static void _DisplayImage(const void *data, const uint32_t width,
     }
 
     /* Loop over the image. */
-    for (j = height; j != 0; j -= downsample_factor)
+    if (channels != 2)
     {
-        for (i = width; i != 0; i -= downsample_factor)
+        for (j = height; j != 0; j -= downsample_factor)
         {
-            *pu16Buf = cvt_clr_fn(src_unsigned);
-            src_unsigned += x_incr;
-            pu16Buf++;
-        }
+            for (i = width; i != 0; i -= downsample_factor)
+            {
+                *pu16Buf = cvt_clr_fn(src_unsigned);
+                src_unsigned += x_incr;
+                pu16Buf++;
+            }
 
-        /* Skip rows if needed. */
-        src_unsigned += y_incr;
+            /* Skip rows if needed. */
+            src_unsigned += y_incr;
+        }
+    }
+    else
+    {
+        memcpy(s_info.framebuffer, data, height * width * 2);
     }
 
     {
@@ -293,7 +303,7 @@ int lcd_display_image(const uint8_t *data, const uint32_t width,
         return 1;
     }
 
-    if (1 == channels || 3 == channels)
+    if (1 == channels || 2 == channels || 3 == channels)
     {
         _DisplayImage(data, width, height, channels, pos_x, pos_y, downsample_factor);
     }

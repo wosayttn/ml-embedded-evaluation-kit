@@ -28,7 +28,8 @@
 
 #define hal_camera_init()                       camera_init()
 #define hal_camera_fini()                       camera_fini()
-#define hal_camera_sync_frame()                 camera_sync_frame()
-#define hal_camera_trigger_next()               camera_trigger_next()
+#define hal_camera_get_frame(x)                 camera_get_frame(x)
+#define hal_camera_sync()                       camera_sync()
+#define hal_camera_oneshot()                    camera_oneshot()
 
 #endif /* HAL_CAMERA_H */

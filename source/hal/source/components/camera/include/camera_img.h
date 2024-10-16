@@ -34,15 +34,21 @@ int camera_init(void);
 int camera_fini(void);
 
 /**
- * @brief       sync a frame from camera.
+ * @brief       get the packet or planner frame buffer from camera.
  * @return      0 if successful, non-zero otherwise.
  **/
-int camera_sync_frame(void);
+const uint8_t *camera_get_frame(int pipe);
+
+/**
+ * @brief       sync frame from camera.
+ * @return      0 if successful, non-zero otherwise.
+ **/
+int camera_sync(void);
 
 /**
  * @brief       trigger new frame from camera.
  * @return      0 if successful, non-zero otherwise.
  **/
-int camera_trigger_next(void);
+int camera_oneshot(void);
 
 #endif /* CAMERA_IMG_H */

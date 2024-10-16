@@ -31,6 +31,13 @@ namespace app {
      **/
     bool ObjectDetectionHandler(ApplicationContext& ctx, uint32_t imgIndex, bool runAll);
 
+    /**
+     * @brief       Handles the inference event.
+     * @param[in]   ctx        Pointer to the application context.
+     * @return      true or false based on execution success.
+     **/
+    bool ObjectDetectionHandlerLive(ApplicationContext& ctx);
+
 } /* namespace app */
 } /* namespace arm */
 

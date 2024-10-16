@@ -22,13 +22,16 @@
 #include "log_macros.h"             /* Logging functions */
 #include "BufAttributes.hpp"        /* Buffer attributes to be applied */
 
-namespace arm {
-namespace app {
-    static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
-    namespace object_detection {
-        extern uint8_t* GetModelPointer();
-        extern size_t GetModelLen();
-    } /* namespace object_detection */
+namespace arm
+{
+namespace app
+{
+static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
+namespace object_detection
+{
+extern uint8_t *GetModelPointer();
+extern size_t GetModelLen();
+} /* namespace object_detection */
 } /* namespace app */
 } /* namespace arm */
 
@@ -55,7 +58,8 @@ void main_loop()
     if (!model.Init(arm::app::tensorArena,
                     sizeof(arm::app::tensorArena),
                     arm::app::object_detection::GetModelPointer(),
-                    arm::app::object_detection::GetModelLen())) {
+                    arm::app::object_detection::GetModelLen()))
+    {
         printf_err("Failed to initialise model\n");
         return;
     }
@@ -64,8 +68,21 @@ void main_loop()
     arm::app::ApplicationContext caseContext;
 
     arm::app::Profiler profiler{"object_detection"};
-    caseContext.Set<arm::app::Profiler&>("profiler", profiler);
-    caseContext.Set<arm::app::Model&>("model", model);
+    caseContext.Set<arm::app::Profiler &>("profiler", profiler);
+    caseContext.Set<arm::app::Model &>("model", model);
+
+#if defined(MLEVK_UC_LIVE_DEMO)
+
+    /* Loop. */
+    bool executionSuccessful = true;
+    do
+    {
+        executionSuccessful = ObjectDetectionHandlerLive(caseContext);
+    }
+    while (executionSuccessful);
+
+#else
+
     caseContext.Set<uint32_t>("imgIndex", 0);
 
     /* Loop. */
@@ -73,40 +90,48 @@ void main_loop()
     constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
 
     /* Loop. */
-    do {
+    do
+    {
         int menuOption = common::MENU_OPT_RUN_INF_NEXT;
-        if (bUseMenu) {
+        if (bUseMenu)
+        {
             DisplayDetectionMenu();
             menuOption = arm::app::ReadUserInputAsInt();
             printf("\n");
         }
-        switch (menuOption) {
-            case common::MENU_OPT_RUN_INF_NEXT:
-                executionSuccessful = ObjectDetectionHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
-                break;
-            case common::MENU_OPT_RUN_INF_CHOSEN: {
-                printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES-1);
-                fflush(stdout);
-                auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
-                executionSuccessful = ObjectDetectionHandler(caseContext, imgIndex, false);
-                break;
-            }
-            case common::MENU_OPT_RUN_INF_ALL:
-                executionSuccessful = ObjectDetectionHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
-                break;
-            case common::MENU_OPT_SHOW_MODEL_INFO:
-                executionSuccessful = model.ShowModelInfoHandler();
-                break;
-            case common::MENU_OPT_LIST_IFM:
-                executionSuccessful = ListFilesHandler(caseContext);
-                break;
-            case common::MENU_OPT_QUIT:
-                executionSuccessful = false;
-                break;
-            default:
-                printf("Incorrect choice, try again.");
-                break;
+        switch (menuOption)
+        {
+        case common::MENU_OPT_RUN_INF_NEXT:
+            executionSuccessful = ObjectDetectionHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
+            break;
+        case common::MENU_OPT_RUN_INF_CHOSEN:
+        {
+            printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES - 1);
+            fflush(stdout);
+            auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
+            executionSuccessful = ObjectDetectionHandler(caseContext, imgIndex, false);
+            break;
         }
-    } while (executionSuccessful && bUseMenu);
+        case common::MENU_OPT_RUN_INF_ALL:
+            executionSuccessful = ObjectDetectionHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
+            break;
+        case common::MENU_OPT_SHOW_MODEL_INFO:
+            executionSuccessful = model.ShowModelInfoHandler();
+            break;
+        case common::MENU_OPT_LIST_IFM:
+            executionSuccessful = ListFilesHandler(caseContext);
+            break;
+        case common::MENU_OPT_QUIT:
+            executionSuccessful = false;
+            break;
+        default:
+            printf("Incorrect choice, try again.");
+            break;
+        }
+    }
+    while (executionSuccessful && bUseMenu);
+
+#endif
+
     info("Main loop terminated.\n");
 }

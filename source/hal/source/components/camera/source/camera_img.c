@@ -22,7 +22,7 @@
 
 //#undef DBG_ENABLE
 #define DBG_LEVEL LOG_LVL_INFO
-#define DBG_SECTION_NAME  "ccap.demo"
+#define DBG_SECTION_NAME  "ml.cam"
 #define DBG_COLOR
 #include <rtdbg.h>
 
@@ -35,7 +35,8 @@
 //#define DEF_FRAMERATE_DIV2
 
 #define DEF_DURATION            10
-#define DEF_ENABLE_PLANAR_PIPE  1
+#define DEF_ENABLE_PLANAR_PIPE  0
+#define DEF_ONE_SHOT            1
 
 #define DEF_PACKET_WIDTH        192
 #define DEF_PACKET_HEIGHT       192
@@ -71,7 +72,6 @@ static ccap_grabber_param s_GrabberParam =
     .devname_sensor = "sensor0",
     .thread_running = 1
 };
-
 
 static void nu_ccap_event_hook(void *pvData, uint32_t u32EvtMask)
 {
@@ -120,10 +120,14 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
         goto exit_ccap_sensor_init;
     }
 
-    psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PACKET_WIDTH * DEF_PACKET_HEIGHT * 2, 32), 32);
+//    psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PACKET_WIDTH * DEF_PACKET_HEIGHT * 2, 32), 32);
+//    psCcapConfig->sPipeInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+
+    psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PACKET_WIDTH * DEF_PACKET_HEIGHT, 32), 32);
+    psCcapConfig->sPipeInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
+
     psCcapConfig->sPipeInfo_Packet.u32Width    = DEF_PACKET_WIDTH;
     psCcapConfig->sPipeInfo_Packet.u32Height   = DEF_PACKET_HEIGHT;
-    psCcapConfig->sPipeInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
     psCcapConfig->u32Stride_Packet             = DEF_PACKET_WIDTH;
 
     if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr == RT_NULL)
@@ -319,11 +323,11 @@ static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
         rt_device_close(psDevCcap);
 }
 
+static ccap_grabber_context sGrabberContext;
 static void ccap_grabber(void *parameter)
 {
     rt_err_t ret;
     ccap_grabber_param_t psGrabberParam = (ccap_grabber_param_t)parameter;
-    ccap_grabber_context sGrabberContext;
 
     rt_device_t psDevCcap = RT_NULL;
     rt_device_t psDevLcd = RT_NULL;
@@ -367,16 +371,29 @@ static void ccap_grabber(void *parameter)
 
     psGrabberParam->ccap_viewinfo_packet = &sGrabberContext.sCcapConfig.sPipeInfo_Packet;
 
+#if DEF_ONE_SHOT
+    /* Set one-shot mode */
+    uint32_t u32OneShot = 1;
+    if (rt_device_control(psDevCcap, CCAP_CMD_SET_OPMODE, &u32OneShot) != RT_EOK)
+    {
+        LOG_E("Can't set one-shot mode %s", psGrabberParam->devname_ccap);
+        goto exit_ccap_grabber;
+    }
+#endif
+
     psGrabberParam->thread_running = 1;
     last = now = rt_tick_get();
     while (psGrabberParam->thread_running)
     {
+#if DEF_ONE_SHOT
+        rt_thread_mdelay(DEF_DURATION * 1000);
+#else
         if (sGrabberContext.semFrameEnd)
         {
             rt_sem_take(sGrabberContext.semFrameEnd, RT_WAITING_FOREVER);
         }
-
         sGrabberContext.u32FrameEnd++;
+#endif
 
         /* FPS */
         now = rt_tick_get();
@@ -439,12 +456,45 @@ int camera_init(void)
     }
 }
 
-int camera_sync_frame(void)
+const uint8_t *camera_get_frame(int pipe)
 {
+    ccap_config_t psCcapConfig = &sGrabberContext.sCcapConfig;
+    if (pipe == 0)
+    {
+        if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
+            return (const uint8_t *)psCcapConfig->sPipeInfo_Packet.pu8FarmAddr;
+    }
+    else if (pipe == 1)
+    {
+#if DEF_ENABLE_PLANAR_PIPE
+        if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
+            return (const uint8_t *)psCcapConfig->sPipeInfo_Planar.pu8FarmAddr;
+#endif
+    }
 
+    return NULL;
 }
 
-int camera_trigger_next(void)
+int camera_sync(void)
 {
+#if DEF_ONE_SHOT
+    if (sGrabberContext.semFrameEnd)
+    {
+        rt_sem_take(sGrabberContext.semFrameEnd, RT_WAITING_FOREVER);
+        sGrabberContext.u32FrameEnd++;
+    }
+#endif
 
+    return 0;
+}
+
+int camera_oneshot(void)
+{
+#if DEF_ONE_SHOT
+    int OpModeShutter = 1;
+    /* One-shot mode, trigger next frame */
+    rt_device_control(sGrabberContext.psDevCcap, CCAP_CMD_SET_OPMODE, &OpModeShutter);
+#endif
+
+    return 0;
 }
