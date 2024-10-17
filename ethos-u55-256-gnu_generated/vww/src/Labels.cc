@@ -27,7 +27,7 @@
 
 
 static const char * labelsVec[] LABELS_ATTRIBUTE = {
-    "Person detected: No",
+    "Person detected:  No",
     "Person detected: Yes",
 };
 

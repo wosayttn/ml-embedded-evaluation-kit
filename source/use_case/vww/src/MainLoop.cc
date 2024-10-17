@@ -24,13 +24,16 @@
 #include "log_macros.h"             /* Logging functions */
 #include "BufAttributes.hpp"        /* Buffer attributes to be applied */
 
-namespace arm {
-namespace app {
-    static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
-    namespace vww {
-        extern uint8_t* GetModelPointer();
-        extern size_t GetModelLen();
-    } /* namespace vww */
+namespace arm
+{
+namespace app
+{
+static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
+namespace vww
+{
+extern uint8_t *GetModelPointer();
+extern size_t GetModelLen();
+} /* namespace vww */
 } /* namespace app */
 } /* namespace arm */
 
@@ -44,7 +47,8 @@ void main_loop()
     if (!model.Init(arm::app::tensorArena,
                     sizeof(arm::app::tensorArena),
                     arm::app::vww::GetModelPointer(),
-                    arm::app::vww::GetModelLen())) {
+                    arm::app::vww::GetModelLen()))
+    {
         printf_err("Failed to initialise model\n");
         return;
     }
@@ -53,54 +57,125 @@ void main_loop()
     arm::app::ApplicationContext caseContext;
 
     arm::app::Profiler profiler{"vww"};
-    caseContext.Set<arm::app::Profiler&>("profiler", profiler);
-    caseContext.Set<arm::app::Model&>("model", model);
-    caseContext.Set<uint32_t>("imgIndex", 0);
+    caseContext.Set<arm::app::Profiler &>("profiler", profiler);
+    caseContext.Set<arm::app::Model &>("model", model);
 
     ViusalWakeWordClassifier classifier;  /* Classifier wrapper object. */
-    caseContext.Set<arm::app::Classifier&>("classifier", classifier);
+    caseContext.Set<arm::app::Classifier &>("classifier", classifier);
 
     std::vector <std::string> labels;
     GetLabelsVector(labels);
     caseContext.Set<const std::vector <std::string>&>("labels", labels);
 
+#if defined(MLEVK_UC_LIVE_DEMO)
+
+    /* Loop. */
+    bool executionSuccessful = true;
+
+    TfLiteIntArray *inputShape = model.GetInputShape(0);
+    const int inputImgCols = inputShape->data[arm::app::VisualWakeWordModel::ms_inputColsIdx];
+    const int inputImgRows = inputShape->data[arm::app::VisualWakeWordModel::ms_inputRowsIdx];
+
+#if 1
+
+    ccap_view_info sViewInfo_Packet;
+
+    /* TEST CHIP use packet-y only */
+    sViewInfo_Packet.u32Width    = inputImgCols;
+    sViewInfo_Packet.u32Height   = inputImgRows;
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
+
+    /* Initialise CAMERA - use packet pipe only */
+    if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
+    {
+        printf_err("hal_camera_init failed\n");
+        return;
+    }
+
+#else
+
+    ccap_view_info sViewInfo_Packet;
+    ccap_view_info sViewInfo_Planar;
+
+    sViewInfo_Packet.u32Width    = inputImgCols;
+    sViewInfo_Packet.u32Height   = inputImgRows;
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+
+    sViewInfo_Planar.u32Width    = inputImgCols;
+    sViewInfo_Planar.u32Height   = inputImgRows;
+    sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
+
+    /* Initialise CAMERA - use packet/planar pipes */
+    if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
+    {
+        printf_err("hal_camera_init failed\n");
+        return;
+    }
+
+#endif
+
+    do
+    {
+        executionSuccessful = ClassifyImageHandlerLive(caseContext);
+    }
+    while (executionSuccessful);
+
+#else
+
+    caseContext.Set<uint32_t>("imgIndex", 0);
+
     /* Loop. */
     bool executionSuccessful = true;
     constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
-    do {
+    do
+    {
         int menuOption = common::MENU_OPT_RUN_INF_NEXT;
-        if (bUseMenu) {
+        if (bUseMenu)
+        {
             DisplayCommonMenu();
             menuOption = arm::app::ReadUserInputAsInt();
             printf("\n");
         }
 
-        switch (menuOption) {
-            case common::MENU_OPT_RUN_INF_NEXT:
-                executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
-                break;
-            case common::MENU_OPT_RUN_INF_CHOSEN: {
-                printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES-1);
-                fflush(stdout);
-                auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
-                executionSuccessful = ClassifyImageHandler(caseContext, imgIndex, false);
-                break;
-            }
-            case common::MENU_OPT_RUN_INF_ALL:
-                executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
-                break;
-            case common::MENU_OPT_SHOW_MODEL_INFO: {
-                executionSuccessful = model.ShowModelInfoHandler();
-                break;
-            }
-            case common::MENU_OPT_LIST_IFM:
-                executionSuccessful = ListFilesHandler(caseContext);
-                break;
-            default:
-                printf("Incorrect choice, try again.");
-                break;
+        switch (menuOption)
+        {
+        case common::MENU_OPT_RUN_INF_NEXT:
+            executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
+            break;
+        case common::MENU_OPT_RUN_INF_CHOSEN:
+        {
+            printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES - 1);
+            fflush(stdout);
+            auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
+            executionSuccessful = ClassifyImageHandler(caseContext, imgIndex, false);
+            break;
         }
-    } while (executionSuccessful && bUseMenu);
+        case common::MENU_OPT_RUN_INF_ALL:
+            executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
+            break;
+        case common::MENU_OPT_SHOW_MODEL_INFO:
+        {
+            executionSuccessful = model.ShowModelInfoHandler();
+            break;
+        }
+        case common::MENU_OPT_LIST_IFM:
+            executionSuccessful = ListFilesHandler(caseContext);
+            break;
+        case common::MENU_OPT_QUIT:
+            executionSuccessful = false;
+            break;
+        default:
+            printf("Incorrect choice, try again.");
+            break;
+        }
+    }
+    while (executionSuccessful && bUseMenu);
+
+#endif
+
     info("Main loop terminated.\n");
 
 }

@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define hal_camera_init()                       camera_init()
+#define hal_camera_init(x, y)                   camera_init(x, y)
 #define hal_camera_fini()                       camera_fini()
 #define hal_camera_get_frame(x)                 camera_get_frame(x)
 #define hal_camera_sync()                       camera_sync()

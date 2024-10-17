@@ -19,17 +19,26 @@
 
 #include "AppContext.hpp"
 
-namespace arm {
-namespace app {
+namespace arm
+{
+namespace app
+{
 
-    /**
-     * @brief       Handles the inference event.
-     * @param[in]   ctx        Pointer to the application context.
-     * @param[in]   imgIndex   Index to the image to classify.
-     * @param[in]   runAll     Flag to request classification of the available images.
-     * @return      true or false based on execution success.
-     **/
-    bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAll);
+/**
+ * @brief       Handles the inference event.
+ * @param[in]   ctx        Pointer to the application context.
+ * @param[in]   imgIndex   Index to the image to classify.
+ * @param[in]   runAll     Flag to request classification of the available images.
+ * @return      true or false based on execution success.
+ **/
+bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAll);
+
+/**
+ * @brief       Handles the inference event.
+ * @param[in]   ctx        Pointer to the application context.
+ * @return      true or false based on execution success.
+ **/
+bool ClassifyImageHandlerLive(ApplicationContext &ctx);
 
 } /* namespace app */
 } /* namespace arm */

@@ -20,12 +20,13 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "ccap_sensor.h"
 
 /**
  * @brief   Initialise the camera
  * @return  0 if successful, error code otherwise.
  **/
-int camera_init(void);
+int camera_init(ccap_view_info_t psViewInfo_Packet, ccap_view_info_t psViewInfo_Planar);
 
 /**
  * @brief   Finalize the camera

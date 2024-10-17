@@ -35,13 +35,7 @@
 //#define DEF_FRAMERATE_DIV2
 
 #define DEF_DURATION            10
-#define DEF_ENABLE_PLANAR_PIPE  0
 #define DEF_ONE_SHOT            1
-
-#define DEF_PACKET_WIDTH        192
-#define DEF_PACKET_HEIGHT       192
-#define DEF_PLANAR_WIDTH        192
-#define DEF_PLANAR_HEIGHT       192
 
 typedef struct
 {
@@ -50,8 +44,8 @@ typedef struct
     char *devname_sensor;
     uint32_t thread_running;
 
-    ccap_view_info_t ccap_viewinfo_planar;
-    ccap_view_info_t ccap_viewinfo_packet;
+    ccap_view_info_t psViewInfo_Packet;
+    ccap_view_info_t psViewInfo_Planar;
 } ccap_grabber_param;
 typedef ccap_grabber_param *ccap_grabber_param_t;
 
@@ -70,8 +64,12 @@ static ccap_grabber_param s_GrabberParam =
     .thread_name = "grab0",
     .devname_ccap = "ccap0",
     .devname_sensor = "sensor0",
-    .thread_running = 1
+    .thread_running = 1,
+    .psViewInfo_Packet = RT_NULL,
+    .psViewInfo_Planar = RT_NULL,
 };
+
+static ccap_grabber_context sGrabberContext;
 
 static void nu_ccap_event_hook(void *pvData, uint32_t u32EvtMask)
 {
@@ -97,6 +95,50 @@ static void nu_ccap_event_hook(void *pvData, uint32_t u32EvtMask)
     }
 }
 
+static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
+{
+    ccap_config_t psCcapConfig = &sGrabberContext.sCcapConfig;
+
+    if (psDevSensor)
+        rt_device_close(psDevSensor);
+
+    if (psDevCcap)
+        rt_device_close(psDevCcap);
+
+    if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
+    {
+        rt_free_align(psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
+        psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = RT_NULL;
+    }
+
+    if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
+    {
+        rt_free_align(psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
+        psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = RT_NULL;
+    }
+}
+
+static uint32_t ccap_get_fmt_bpp(uint32_t u32PixFmt)
+{
+    switch (u32PixFmt)
+    {
+    case CCAP_PAR_OUTFMT_ONLY_Y:
+        return 1;
+
+    case CCAP_PAR_PLNFMT_YUV422:
+    //case CCAP_PAR_OUTFMT_YUV422:
+    case CCAP_PAR_PLNFMT_YUV420:
+    case CCAP_PAR_OUTFMT_RGB555:
+    case CCAP_PAR_OUTFMT_RGB565:
+        return 2;
+
+    default:
+        return 0;
+    }
+
+    return 0;
+}
+
 static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, ccap_grabber_param_t psGrabberParam)
 {
     rt_err_t ret;
@@ -120,47 +162,63 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
         goto exit_ccap_sensor_init;
     }
 
-//    psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PACKET_WIDTH * DEF_PACKET_HEIGHT * 2, 32), 32);
-//    psCcapConfig->sPipeInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
-
-    psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PACKET_WIDTH * DEF_PACKET_HEIGHT, 32), 32);
-    psCcapConfig->sPipeInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
-
-    psCcapConfig->sPipeInfo_Packet.u32Width    = DEF_PACKET_WIDTH;
-    psCcapConfig->sPipeInfo_Packet.u32Height   = DEF_PACKET_HEIGHT;
-    psCcapConfig->u32Stride_Packet             = DEF_PACKET_WIDTH;
-
-    if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr == RT_NULL)
+    if (psGrabberParam->psViewInfo_Packet)
     {
-        psCcapConfig->sPipeInfo_Packet.u32Height = 0;
-        psCcapConfig->sPipeInfo_Packet.u32Width  = 0;
-        psCcapConfig->sPipeInfo_Packet.u32PixFmt = 0;
-        psCcapConfig->u32Stride_Packet           = 0;
-    }
-    LOG_I("Packet.FarmAddr@0x%08X", psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
-    LOG_I("Packet.FarmWidth: %d", psCcapConfig->sPipeInfo_Packet.u32Width);
-    LOG_I("Packet.FarmHeight: %d", psCcapConfig->sPipeInfo_Packet.u32Height);
+        psCcapConfig->sPipeInfo_Packet.u32PixFmt   = psGrabberParam->psViewInfo_Packet->u32PixFmt;
+        psCcapConfig->sPipeInfo_Packet.u32Width    = psGrabberParam->psViewInfo_Packet->u32Width;
+        psCcapConfig->sPipeInfo_Packet.u32Height   = psGrabberParam->psViewInfo_Packet->u32Height;
+        psCcapConfig->u32Stride_Packet             = psGrabberParam->psViewInfo_Packet->u32Width;
+        if (psGrabberParam->psViewInfo_Packet->pu8FarmAddr == RT_NULL)
+        {
+            uint32_t u32Sz = psCcapConfig->sPipeInfo_Packet.u32Width *
+                             psCcapConfig->sPipeInfo_Packet.u32Height *
+                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Packet.u32PixFmt);
 
-    /* Planar pipe for encoding */
-#if DEF_ENABLE_PLANAR_PIPE
-    psCcapConfig->sPipeInfo_Planar.u32Width    = DEF_PLANAR_WIDTH;
-    psCcapConfig->sPipeInfo_Planar.u32Height   = DEF_PLANAR_HEIGHT;
-    psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = rt_malloc_align(RT_ALIGN(DEF_PLANAR_WIDTH * DEF_PLANAR_HEIGHT * 2, 32), 32);
-    psCcapConfig->sPipeInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV420;
-    psCcapConfig->u32Stride_Planar             = DEF_PLANAR_WIDTH;
+            // Allocate memory.
+            psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
+            if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr == RT_NULL)
+            {
+                psCcapConfig->sPipeInfo_Packet.u32Height = 0;
+                psCcapConfig->sPipeInfo_Packet.u32Width  = 0;
+                psCcapConfig->sPipeInfo_Packet.u32PixFmt = 0;
+                psCcapConfig->u32Stride_Packet           = 0;
+            }
+        }
 
-    if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr == RT_NULL)
-    {
-        psCcapConfig->sPipeInfo_Planar.u32Height = 0;
-        psCcapConfig->sPipeInfo_Planar.u32Width  = 0;
-        psCcapConfig->sPipeInfo_Planar.u32PixFmt = 0;
-        psCcapConfig->u32Stride_Planar           = 0;
+        LOG_I("Packet.FarmAddr@0x%08X", psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
+        LOG_I("Packet.FarmWidth: %d", psCcapConfig->sPipeInfo_Packet.u32Width);
+        LOG_I("Packet.FarmHeight: %d", psCcapConfig->sPipeInfo_Packet.u32Height);
     }
 
-    LOG_I("Planar.FarmAddr@0x%08X", psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
-    LOG_I("Planar.FarmWidth: %d", psCcapConfig->sPipeInfo_Planar.u32Width);
-    LOG_I("Planar.FarmHeight: %d", psCcapConfig->sPipeInfo_Planar.u32Height);
-#endif
+    if (psGrabberParam->psViewInfo_Planar)
+    {
+        /* Planar pipe for encoding */
+        psCcapConfig->sPipeInfo_Planar.u32PixFmt   = psGrabberParam->psViewInfo_Planar->u32PixFmt;
+        psCcapConfig->sPipeInfo_Planar.u32Width    = psGrabberParam->psViewInfo_Planar->u32Width;
+        psCcapConfig->sPipeInfo_Planar.u32Height   = psGrabberParam->psViewInfo_Planar->u32Height;
+        psCcapConfig->u32Stride_Planar             = psGrabberParam->psViewInfo_Planar->u32Width;
+        if (psGrabberParam->psViewInfo_Planar->pu8FarmAddr == RT_NULL)
+        {
+            uint32_t u32Sz = psCcapConfig->sPipeInfo_Planar.u32Width *
+                             psCcapConfig->sPipeInfo_Planar.u32Height *
+                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Planar.u32PixFmt);
+
+            // Allocate memory.
+            psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
+            if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr == RT_NULL)
+            {
+                psCcapConfig->sPipeInfo_Planar.u32Height = 0;
+                psCcapConfig->sPipeInfo_Planar.u32Width  = 0;
+                psCcapConfig->sPipeInfo_Planar.u32PixFmt = 0;
+                psCcapConfig->u32Stride_Planar           = 0;
+            }
+
+        }
+
+        LOG_I("Planar.FarmAddr@0x%08X", psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
+        LOG_I("Planar.FarmWidth: %d", psCcapConfig->sPipeInfo_Planar.u32Width);
+        LOG_I("Planar.FarmHeight: %d", psCcapConfig->sPipeInfo_Planar.u32Height);
+    }
 
     /* open CCAP */
     ret = rt_device_open(psDevCcap, 0);
@@ -180,7 +238,7 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
                 || (psViewInfo == RT_NULL))
         {
             LOG_E("Can't get suit mode for packet.");
-            goto fail_ccap_init;
+            goto exit_ccap_sensor_init;
         }
     }
 
@@ -258,19 +316,17 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
     if (ret != RT_EOK)
     {
         LOG_E("Can't feed configuration %s", psGrabberParam->devname_ccap);
-        goto fail_ccap_init;
+        goto exit_ccap_sensor_init;
     }
 
     {
         int i32SenClk = psSensorModeInfo->u32SenClk;
-        if ((i32SenClk > 45000000) && DEF_ENABLE_PLANAR_PIPE)
-            i32SenClk = 45000000; /* Bandwidth limitation: Slow down sensor clock */
 
         /* speed up pixel clock */
         if (rt_device_control(psDevCcap, CCAP_CMD_SET_SENCLK, (void *)&i32SenClk) != RT_EOK)
         {
             LOG_E("Can't feed setting.");
-            goto fail_ccap_init;
+            goto exit_ccap_sensor_init;
         }
     }
 
@@ -278,62 +334,41 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
     if (rt_device_open(psDevSensor, 0) != RT_EOK)
     {
         LOG_E("Can't open sensor.");
-        goto fail_sensor_init;
+        goto exit_ccap_sensor_init;
     }
 
     /* Feed settings to sensor */
     if (rt_device_control(psDevSensor, CCAP_SENSOR_CMD_SET_MODE, (void *)psSensorModeInfo) != RT_EOK)
     {
         LOG_E("Can't feed setting.");
-        goto fail_sensor_init;
+        goto exit_ccap_sensor_init;
     }
 
     ret = rt_device_control(psDevCcap, CCAP_CMD_SET_PIPES, (void *)psViewInfo);
     if (ret != RT_EOK)
     {
         LOG_E("Can't set pipes %s", psGrabberParam->devname_ccap);
-        goto fail_ccap_init;
+        goto exit_ccap_sensor_init;
     }
 
     return psDevCcap;
 
-fail_sensor_init:
-
-    if (psDevSensor)
-        rt_device_close(psDevSensor);
-
-fail_ccap_init:
-
-    if (psDevCcap)
-        rt_device_close(psDevCcap);
-
 exit_ccap_sensor_init:
+
+    ccap_sensor_fini(rt_device_find(psGrabberParam->devname_ccap), rt_device_find(psGrabberParam->devname_sensor));
 
     psDevCcap = psDevSensor = RT_NULL;
 
     return psDevCcap;
 }
 
-static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
-{
-    if (psDevSensor)
-        rt_device_close(psDevSensor);
-
-    if (psDevCcap)
-        rt_device_close(psDevCcap);
-}
-
-static ccap_grabber_context sGrabberContext;
 static void ccap_grabber(void *parameter)
 {
     rt_err_t ret;
-    ccap_grabber_param_t psGrabberParam = (ccap_grabber_param_t)parameter;
-
     rt_device_t psDevCcap = RT_NULL;
-    rt_device_t psDevLcd = RT_NULL;
-
     rt_tick_t last, now;
     rt_bool_t bDrawDirect;
+    ccap_grabber_param_t psGrabberParam = (ccap_grabber_param_t)parameter;
 
     rt_memset((void *)&sGrabberContext, 0, sizeof(ccap_grabber_context));
 
@@ -368,8 +403,6 @@ static void ccap_grabber(void *parameter)
         LOG_E("Can't start %s", psGrabberParam->devname_ccap);
         goto exit_ccap_grabber;
     }
-
-    psGrabberParam->ccap_viewinfo_packet = &sGrabberContext.sCcapConfig.sPipeInfo_Packet;
 
 #if DEF_ONE_SHOT
     /* Set one-shot mode */
@@ -411,22 +444,6 @@ exit_ccap_grabber:
 
     ccap_sensor_fini(rt_device_find(psGrabberParam->devname_ccap), rt_device_find(psGrabberParam->devname_sensor));
 
-    ccap_config_t    psCcapConfig = &sGrabberContext.sCcapConfig;
-
-    if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
-    {
-        rt_free_align(psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
-        psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = RT_NULL;
-    }
-
-#if DEF_ENABLE_PLANAR_PIPE
-    if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
-    {
-        rt_free_align(psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
-        psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = RT_NULL;
-    }
-#endif
-
     return;
 }
 
@@ -439,11 +456,21 @@ int camera_fini(void)
     }
 }
 
-int camera_init(void)
+int camera_init(ccap_view_info_t psViewInfo_Packet, ccap_view_info_t psViewInfo_Planar)
 {
     rt_thread_t ccap_thread = rt_thread_find(s_GrabberParam.thread_name);
     if (ccap_thread == RT_NULL)
     {
+        if (psViewInfo_Packet)
+        {
+            s_GrabberParam.psViewInfo_Packet = psViewInfo_Packet;
+        }
+
+        if (psViewInfo_Planar)
+        {
+            s_GrabberParam.psViewInfo_Planar = psViewInfo_Planar;
+        }
+
         ccap_thread = rt_thread_create(s_GrabberParam.thread_name,
                                        ccap_grabber,
                                        &s_GrabberParam,
@@ -459,6 +486,7 @@ int camera_init(void)
 const uint8_t *camera_get_frame(int pipe)
 {
     ccap_config_t psCcapConfig = &sGrabberContext.sCcapConfig;
+
     if (pipe == 0)
     {
         if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
@@ -466,10 +494,8 @@ const uint8_t *camera_get_frame(int pipe)
     }
     else if (pipe == 1)
     {
-#if DEF_ENABLE_PLANAR_PIPE
         if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
             return (const uint8_t *)psCcapConfig->sPipeInfo_Planar.pu8FarmAddr;
-#endif
     }
 
     return NULL;
