@@ -28,12 +28,18 @@ namespace arm
 {
 namespace app
 {
-static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    static uint8_t *tensorArena;
+#else
+    static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
+#endif
+#if !defined(MLEVK_UC_DYNAMIC_LOAD)
 namespace vww
 {
 extern uint8_t *GetModelPointer();
 extern size_t GetModelLen();
 } /* namespace vww */
+#endif
 } /* namespace app */
 } /* namespace arm */
 
@@ -42,12 +48,55 @@ using ViusalWakeWordClassifier = arm::app::Classifier;
 void main_loop()
 {
     arm::app::VisualWakeWordModel model;  /* Model wrapper object. */
+    void *pvAreanaBufAddr = arm::app::tensorArena;
+    uint32_t u32AreanaBufLen = ACTIVATION_BUF_SZ;
+
+
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    pvAreanaBufAddr = (uint8_t *)hal_memheap_helper_allocate(
+#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
+                          evAREANA_AT_SRAM,
+#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
+                          evAREANA_AT_HYPERRAM,
+#endif
+                          ACTIVATION_BUF_SZ);
+    if (pvAreanaBufAddr == NULL)
+    {
+        printf_err("Failed to allocate tensorAreana cache memory.( %d Bytes)\n", ACTIVATION_BUF_SZ);
+        return;
+    }
+#endif
+
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+    void *pvModelBufAddr = NULL;
+    uint32_t u32ModelBufLen = 0;
+#define DEF_MODEL_FILE_NAME      "vww4_128_128_INT8_vela_H256.tflite"
+
+    hal_ext_file_list(MLEVK_UC_DYNAMIC_LOAD_PATH);
+    if (hal_ext_file_import(MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME, &pvModelBufAddr, &u32ModelBufLen) < 0)
+    {
+        printf_err("Failed to load model - %s\n", MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME);
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+        hal_memheap_helper_free(
+#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
+            evAREANA_AT_SRAM,
+#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
+            evAREANA_AT_HYPERRAM,
+#endif
+            pvAreanaBufAddr);
+#endif
+        return;
+    }
+#else
+    void *pvModelBufAddr = arm::app::vww::GetModelPointer();
+    uint32_t u32ModelBufLen = arm::app::vww::GetModelLen();
+#endif
 
     /* Load the model. */
-    if (!model.Init(arm::app::tensorArena,
-                    sizeof(arm::app::tensorArena),
-                    arm::app::vww::GetModelPointer(),
-                    arm::app::vww::GetModelLen()))
+    if (!model.Init((uint8_t *)pvAreanaBufAddr,
+                    u32AreanaBufLen,
+                    (const uint8_t *)pvModelBufAddr,
+                    u32ModelBufLen))
     {
         printf_err("Failed to initialise model\n");
         return;
@@ -67,14 +116,14 @@ void main_loop()
     GetLabelsVector(labels);
     caseContext.Set<const std::vector <std::string>&>("labels", labels);
 
-#if defined(MLEVK_UC_LIVE_DEMO)
-
     /* Loop. */
     bool executionSuccessful = true;
 
     TfLiteIntArray *inputShape = model.GetInputShape(0);
     const int inputImgCols = inputShape->data[arm::app::VisualWakeWordModel::ms_inputColsIdx];
     const int inputImgRows = inputShape->data[arm::app::VisualWakeWordModel::ms_inputRowsIdx];
+
+#if defined(MLEVK_UC_LIVE_DEMO)
 
 #if 1
 
@@ -128,8 +177,9 @@ void main_loop()
     caseContext.Set<uint32_t>("imgIndex", 0);
 
     /* Loop. */
-    bool executionSuccessful = true;
     constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+
+    /* Loop. */
     do
     {
         int menuOption = common::MENU_OPT_RUN_INF_NEXT;
@@ -176,6 +226,19 @@ void main_loop()
 
 #endif
 
-    info("Main loop terminated.\n");
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    hal_memheap_helper_free(
+#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
+        evAREANA_AT_SRAM,
+#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
+        evAREANA_AT_HYPERRAM,
+#endif
+        pvAreanaBufAddr);
+#endif
 
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+    hal_ext_file_release(pvModelBufAddr);
+#endif
+
+    info("Main loop terminated.\n");
 }
