@@ -38,6 +38,32 @@ menu "ml-embedded-evaluation-kit"
 
         config MLEVK_UC_LIVE_DEMO
             bool "LIVE Demo"
+
+        config MLEVK_UC_AREANA_DYNAMIC_ALLOCATE
+            bool "Allocate Areana cache memory on-demand."
+            default y
+
+        if MLEVK_UC_AREANA_DYNAMIC_ALLOCATE
+            choice
+                prompt "Select Areana placement"
+
+                config MLEVK_UC_AREANA_PLACE_SRAM
+                    bool "Place areana cache on SRAM"
+
+                config MLEVK_UC_AREANA_PLACE_HYPERRAM
+                    bool "Place areana cache on external HyperRAM"
+            endchoice
+        endif
+
+        config MLEVK_UC_DYNAMIC_LOAD
+            bool "Load model/label from file"
+
+        if MLEVK_UC_DYNAMIC_LOAD
+            config MLEVK_UC_DYNAMIC_LOAD_PATH
+                string "Load model and label from specific PATH."
+                default "/mnt/sd0/model"
+        endif
+
     endif
 
 endmenu

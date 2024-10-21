@@ -28,10 +28,12 @@
 extern "C" {
 #endif
 
-#include "platform_drivers.h"   /* Platform drivers */
-#include "hal_pmu.h"              /* Timer/profiler API */
-#include "hal_lcd.h"            /* LCD functions */
-#include "hal_camera.h"            /* CAMERA functions */
+#include "platform_drivers.h"       /* Platform drivers */
+#include "hal_pmu.h"                /* Timer/profiler API */
+#include "hal_lcd.h"                /* LCD functions */
+#include "hal_camera.h"             /* CAMERA functions */
+#include "hal_ext_file.h"           /* File importing functions */
+#include "hal_memheap_helper.h"     /* Memory heap helper functions */
 
 #include <inttypes.h>
 #include <stdbool.h>
