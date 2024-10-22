@@ -53,6 +53,7 @@ void IncrementAppCtxIfmIdx(arm::app::ApplicationContext& ctx, const std::string&
    **/
 bool SetAppCtxIfmIdx(arm::app::ApplicationContext& ctx, uint32_t idx, const std::string& ctxIfmName);
 
+bool LoadLabelsVector(std::vector<std::string> &labels, void *pvLabelsBuffAddr, uint32_t u32LabelsBufLen);
 
 namespace common {
 

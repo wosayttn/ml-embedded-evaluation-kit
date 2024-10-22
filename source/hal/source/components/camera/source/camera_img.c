@@ -118,6 +118,16 @@ static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
     }
 }
 
+#define CCAP_PAR_OUTFMT_RGB888_U8       ((1 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_BGR888_U8       ((0 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_ARGB888_U8      ((3 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_BGRA888_U8      ((2 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
+/*!< CCAP PAR/PARM setting for Image Data RGB888 INT8  Format Output to System Memory                \hideinitializer */
+#define CCAP_PAR_OUTFMT_RGB888_I8       ((1 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_BGR888_I8       ((0 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_ARGB888_I8      ((3 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
+#define CCAP_PAR_OUTFMT_BGRA888_I8      ((2 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
+
 static uint32_t ccap_get_fmt_bpp(uint32_t u32PixFmt)
 {
     switch (u32PixFmt)
@@ -131,6 +141,18 @@ static uint32_t ccap_get_fmt_bpp(uint32_t u32PixFmt)
     case CCAP_PAR_OUTFMT_RGB555:
     case CCAP_PAR_OUTFMT_RGB565:
         return 2;
+
+    case CCAP_PAR_OUTFMT_BGR888_I8:
+    case CCAP_PAR_OUTFMT_RGB888_I8:
+    case CCAP_PAR_OUTFMT_BGR888_U8:
+    case CCAP_PAR_OUTFMT_RGB888_U8:
+        return 3;
+
+    case CCAP_PAR_OUTFMT_ARGB888_I8:
+    case CCAP_PAR_OUTFMT_BGRA888_I8:
+    case CCAP_PAR_OUTFMT_ARGB888_U8:
+    case CCAP_PAR_OUTFMT_BGRA888_U8:
+        return 4;
 
     default:
         return 0;

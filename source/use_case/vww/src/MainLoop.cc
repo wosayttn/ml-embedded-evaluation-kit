@@ -36,8 +36,8 @@ namespace app
 #if !defined(MLEVK_UC_DYNAMIC_LOAD)
 namespace vww
 {
-extern uint8_t *GetModelPointer();
-extern size_t GetModelLen();
+    extern uint8_t *GetModelPointer();
+    extern size_t GetModelLen();
 } /* namespace vww */
 #endif
 } /* namespace app */
@@ -50,7 +50,6 @@ void main_loop()
     arm::app::VisualWakeWordModel model;  /* Model wrapper object. */
     void *pvAreanaBufAddr = arm::app::tensorArena;
     uint32_t u32AreanaBufLen = ACTIVATION_BUF_SZ;
-
 
 #if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
     pvAreanaBufAddr = (uint8_t *)hal_memheap_helper_allocate(
@@ -68,25 +67,26 @@ void main_loop()
 #endif
 
 #if defined(MLEVK_UC_DYNAMIC_LOAD)
+#define DEF_MODEL_FILE_NAME      "vww4_128_128_INT8_vela_H256.tflite"
+#define DEF_LABEL_FILE_NAME      "visual_wake_word_labels.txt"
     void *pvModelBufAddr = NULL;
     uint32_t u32ModelBufLen = 0;
-#define DEF_MODEL_FILE_NAME      "vww4_128_128_INT8_vela_H256.tflite"
+    void *pvLabelBufAddr = NULL;
+    uint32_t u32LabelBufLen = 0;
 
     hal_ext_file_list(MLEVK_UC_DYNAMIC_LOAD_PATH);
     if (hal_ext_file_import(MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME, &pvModelBufAddr, &u32ModelBufLen) < 0)
     {
         printf_err("Failed to load model - %s\n", MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME);
-#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
-        hal_memheap_helper_free(
-#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
-            evAREANA_AT_SRAM,
-#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
-            evAREANA_AT_HYPERRAM,
-#endif
-            pvAreanaBufAddr);
-#endif
-        return;
+        goto exit_main_loop;
     }
+
+    if (hal_ext_file_import(MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_LABEL_FILE_NAME, &pvLabelBufAddr, &u32LabelBufLen) < 0)
+    {
+        printf_err("Failed to load label - %s\n", MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_LABEL_FILE_NAME);
+        goto exit_main_loop;
+    }
+
 #else
     void *pvModelBufAddr = arm::app::vww::GetModelPointer();
     uint32_t u32ModelBufLen = arm::app::vww::GetModelLen();
@@ -99,145 +99,163 @@ void main_loop()
                     u32ModelBufLen))
     {
         printf_err("Failed to initialise model\n");
-        return;
     }
+    else
+    {
+        /* Instantiate application context. */
+        arm::app::ApplicationContext caseContext;
 
-    /* Instantiate application context. */
-    arm::app::ApplicationContext caseContext;
+        arm::app::Profiler profiler{"vww"};
+        caseContext.Set<arm::app::Profiler &>("profiler", profiler);
+        caseContext.Set<arm::app::Model &>("model", model);
 
-    arm::app::Profiler profiler{"vww"};
-    caseContext.Set<arm::app::Profiler &>("profiler", profiler);
-    caseContext.Set<arm::app::Model &>("model", model);
+        ViusalWakeWordClassifier classifier;  /* Classifier wrapper object. */
+        caseContext.Set<arm::app::Classifier &>("classifier", classifier);
 
-    ViusalWakeWordClassifier classifier;  /* Classifier wrapper object. */
-    caseContext.Set<arm::app::Classifier &>("classifier", classifier);
+        std::vector <std::string> labels;
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+        LoadLabelsVector(labels, pvLabelBufAddr, u32LabelBufLen);
+#else
+        GetLabelsVector(labels);
+#endif
+        caseContext.Set<const std::vector <std::string>&>("labels", labels);
 
-    std::vector <std::string> labels;
-    GetLabelsVector(labels);
-    caseContext.Set<const std::vector <std::string>&>("labels", labels);
+        /* Loop. */
+        bool executionSuccessful = true;
 
-    /* Loop. */
-    bool executionSuccessful = true;
-
-    TfLiteIntArray *inputShape = model.GetInputShape(0);
-    const int inputImgCols = inputShape->data[arm::app::VisualWakeWordModel::ms_inputColsIdx];
-    const int inputImgRows = inputShape->data[arm::app::VisualWakeWordModel::ms_inputRowsIdx];
+        TfLiteIntArray *inputShape = model.GetInputShape(0);
+        const int inputImgCols = inputShape->data[arm::app::VisualWakeWordModel::ms_inputColsIdx];
+        const int inputImgRows = inputShape->data[arm::app::VisualWakeWordModel::ms_inputRowsIdx];
 
 #if defined(MLEVK_UC_LIVE_DEMO)
 
 #if 1
 
-    ccap_view_info sViewInfo_Packet;
+        ccap_view_info sViewInfo_Packet;
 
-    /* TEST CHIP use packet-y only */
-    sViewInfo_Packet.u32Width    = inputImgCols;
-    sViewInfo_Packet.u32Height   = inputImgRows;
-    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
+        /* TEST CHIP use packet-y only */
+        sViewInfo_Packet.u32Width    = inputImgCols;
+        sViewInfo_Packet.u32Height   = inputImgRows;
+        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
 
-    /* Initialise CAMERA - use packet pipe only */
-    if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
-    {
-        printf_err("hal_camera_init failed\n");
-        return;
-    }
+        /* Initialise CAMERA - use packet pipe only */
+        if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
+        {
+            printf_err("hal_camera_init failed\n");
+            return;
+        }
 
 #else
 
-    ccap_view_info sViewInfo_Packet;
-    ccap_view_info sViewInfo_Planar;
+        ccap_view_info sViewInfo_Packet;
+        ccap_view_info sViewInfo_Planar;
 
-    sViewInfo_Packet.u32Width    = inputImgCols;
-    sViewInfo_Packet.u32Height   = inputImgRows;
-    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+        sViewInfo_Packet.u32Width    = inputImgCols;
+        sViewInfo_Packet.u32Height   = inputImgRows;
+        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
 
-    sViewInfo_Planar.u32Width    = inputImgCols;
-    sViewInfo_Planar.u32Height   = inputImgRows;
-    sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-    sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
+        sViewInfo_Planar.u32Width    = inputImgCols;
+        sViewInfo_Planar.u32Height   = inputImgRows;
+        sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+        sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
 
-    /* Initialise CAMERA - use packet/planar pipes */
-    if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
-    {
-        printf_err("hal_camera_init failed\n");
-        return;
-    }
+        /* Initialise CAMERA - use packet/planar pipes */
+        if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
+        {
+            printf_err("hal_camera_init failed\n");
+            return;
+        }
 
 #endif
 
-    do
-    {
-        executionSuccessful = ClassifyImageHandlerLive(caseContext);
-    }
-    while (executionSuccessful);
+        do
+        {
+            executionSuccessful = ClassifyImageHandlerLive(caseContext);
+        }
+        while (executionSuccessful);
 
 #else
 
-    caseContext.Set<uint32_t>("imgIndex", 0);
+        caseContext.Set<uint32_t>("imgIndex", 0);
 
-    /* Loop. */
-    constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+        /* Loop. */
+        constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
 
-    /* Loop. */
-    do
-    {
-        int menuOption = common::MENU_OPT_RUN_INF_NEXT;
-        if (bUseMenu)
+        /* Loop. */
+        do
         {
-            DisplayCommonMenu();
-            menuOption = arm::app::ReadUserInputAsInt();
-            printf("\n");
-        }
+            int menuOption = common::MENU_OPT_RUN_INF_NEXT;
+            if (bUseMenu)
+            {
+                DisplayCommonMenu();
+                menuOption = arm::app::ReadUserInputAsInt();
+                printf("\n");
+            }
 
-        switch (menuOption)
-        {
-        case common::MENU_OPT_RUN_INF_NEXT:
-            executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
-            break;
-        case common::MENU_OPT_RUN_INF_CHOSEN:
-        {
-            printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES - 1);
-            fflush(stdout);
-            auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
-            executionSuccessful = ClassifyImageHandler(caseContext, imgIndex, false);
-            break;
+            switch (menuOption)
+            {
+            case common::MENU_OPT_RUN_INF_NEXT:
+                executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), false);
+                break;
+            case common::MENU_OPT_RUN_INF_CHOSEN:
+            {
+                printf("    Enter the image index [0, %d]: ", NUMBER_OF_FILES - 1);
+                fflush(stdout);
+                auto imgIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
+                executionSuccessful = ClassifyImageHandler(caseContext, imgIndex, false);
+                break;
+            }
+            case common::MENU_OPT_RUN_INF_ALL:
+                executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
+                break;
+            case common::MENU_OPT_SHOW_MODEL_INFO:
+            {
+                executionSuccessful = model.ShowModelInfoHandler();
+                break;
+            }
+            case common::MENU_OPT_LIST_IFM:
+                executionSuccessful = ListFilesHandler(caseContext);
+                break;
+            case common::MENU_OPT_QUIT:
+                executionSuccessful = false;
+                break;
+            default:
+                printf("Incorrect choice, try again.");
+                break;
+            }
         }
-        case common::MENU_OPT_RUN_INF_ALL:
-            executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
-            break;
-        case common::MENU_OPT_SHOW_MODEL_INFO:
-        {
-            executionSuccessful = model.ShowModelInfoHandler();
-            break;
-        }
-        case common::MENU_OPT_LIST_IFM:
-            executionSuccessful = ListFilesHandler(caseContext);
-            break;
-        case common::MENU_OPT_QUIT:
-            executionSuccessful = false;
-            break;
-        default:
-            printf("Incorrect choice, try again.");
-            break;
-        }
-    }
-    while (executionSuccessful && bUseMenu);
+        while (executionSuccessful && bUseMenu);
 
 #endif
+    }
+
+exit_main_loop:
 
 #if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
-    hal_memheap_helper_free(
+    if (pvAreanaBufAddr)
+    {
+        hal_memheap_helper_free(
 #if defined(MLEVK_UC_AREANA_PLACE_SRAM)
-        evAREANA_AT_SRAM,
+            evAREANA_AT_SRAM,
 #elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
-        evAREANA_AT_HYPERRAM,
+            evAREANA_AT_HYPERRAM,
 #endif
-        pvAreanaBufAddr);
+            pvAreanaBufAddr);
 #endif
+    }
 
 #if defined(MLEVK_UC_DYNAMIC_LOAD)
-    hal_ext_file_release(pvModelBufAddr);
+    if (pvModelBufAddr)
+    {
+        hal_ext_file_release(pvModelBufAddr);
+    }
+
+    if (pvLabelBufAddr)
+    {
+        hal_ext_file_release(pvLabelBufAddr);
+    }
 #endif
 
     info("Main loop terminated.\n");

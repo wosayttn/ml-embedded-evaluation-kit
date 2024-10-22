@@ -105,7 +105,6 @@ uint32_t ext_file_checksum(uint32_t *ptr, uint32_t len)
     return crc ^ ~0U;
 }
 
-
 int ext_file_list(const char *pcDirPath)
 {
     int n = 0;
@@ -166,8 +165,7 @@ int ext_file_import(const char *pcPath, void **ppvBufAddr, uint32_t *pu32BufSize
         goto exit_ext_file_import;
     }
 
-    LOG_I("Loaded %s", pcPath);
-    LOG_I("Imported Model Address: %08x, Length: %d Bytes, CRC32: %08X",
+    LOG_I("Loaded file @%08x, %d Bytes, CRC32: %08X",
           pvBufAddr,
           sb.st_size,
           ext_file_checksum(pvBufAddr, sb.st_size));

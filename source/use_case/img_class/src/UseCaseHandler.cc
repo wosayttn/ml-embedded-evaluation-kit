@@ -118,7 +118,7 @@ bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAl
 
         /* Display message on the LCD - inference running. */
         hal_lcd_display_text(
-            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, false);
+            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
 
         /* Select the image to run inference with. */
         info("Running inference on image %" PRIu32 " => %s\n",
@@ -150,7 +150,7 @@ bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAl
         /* Erase. */
         str_inf = std::string(str_inf.size(), ' ');
         hal_lcd_display_text(
-            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, false);
+            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
 
         /* Add results to context for access outside handler. */
         ctx.Set<std::vector<ClassificationResult>>("results", results);
@@ -170,6 +170,110 @@ bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAl
 
     }
     while (runAll && ctx.Get<uint32_t>("imgIndex") != initialImgIdx);
+
+    return true;
+}
+
+/* Image classification inference handler. */
+bool ClassifyImageHandlerLive(ApplicationContext &ctx)
+{
+    auto &profiler = ctx.Get<Profiler &>("profiler");
+    auto &model    = ctx.Get<Model &>("model");
+    constexpr uint32_t dataPsnImgDownscaleFactor = 2;
+    constexpr uint32_t dataPsnImgStartX          = 10;
+    constexpr uint32_t dataPsnImgStartY          = 35;
+
+    constexpr uint32_t dataPsnTxtInfStartX = 150;
+    constexpr uint32_t dataPsnTxtInfStartY = 40;
+
+    if (!model.IsInited())
+    {
+        printf_err("Model is not initialised! Terminating processing.\n");
+        return false;
+    }
+
+    TfLiteTensor *inputTensor  = model.GetInputTensor(0);
+    TfLiteTensor *outputTensor = model.GetOutputTensor(0);
+    if (!inputTensor->dims)
+    {
+        printf_err("Invalid input tensor dims\n");
+        return false;
+    }
+    else if (inputTensor->dims->size < 4)
+    {
+        printf_err("Input tensor dimension should be = 4\n");
+        return false;
+    }
+
+    /* Get input shape for displaying the image. */
+    TfLiteIntArray *inputShape = model.GetInputShape(0);
+    const uint32_t nCols       = inputShape->data[arm::app::MobileNetModel::ms_inputColsIdx];
+    const uint32_t nRows       = inputShape->data[arm::app::MobileNetModel::ms_inputRowsIdx];
+    const uint32_t nChannels   = inputShape->data[arm::app::MobileNetModel::ms_inputChannelsIdx];
+
+    /* Set up pre and post-processing. */
+    ImgClassPreProcess preProcess = ImgClassPreProcess(inputTensor, model.IsDataSigned());
+
+    std::vector<ClassificationResult> results;
+    ImgClassPostProcess postProcess =
+        ImgClassPostProcess(outputTensor,
+                            ctx.Get<ImgClassClassifier &>("classifier"),
+                            ctx.Get<std::vector<std::string>&>("labels"),
+                            results);
+
+    hal_camera_sync();
+    const uint8_t *PktImage = hal_camera_get_frame(0);
+    if (PktImage == NULL)
+    {
+        printf_err("Sync pkt frame failed.");
+        return false;
+    }
+
+    /* Display this image on the LCD. */
+    hal_lcd_display_image(PktImage,
+                          nCols,
+                          nRows,
+                          nChannels,
+                          dataPsnImgStartX,
+                          dataPsnImgStartY,
+                          dataPsnImgDownscaleFactor);
+
+    const size_t imgSz = nCols * nRows;
+
+    /* Run the pre-processing, inference and post-processing. */
+    if (!preProcess.DoPreProcess(PktImage, imgSz))
+    {
+        printf_err("Pre-processing failed.");
+        return false;
+    }
+
+    hal_camera_oneshot();
+
+    if (!RunInference(model, profiler))
+    {
+        printf_err("Inference failed.");
+        return false;
+    }
+
+    if (!postProcess.DoPostProcess())
+    {
+        printf_err("Post-processing failed.");
+        return false;
+    }
+
+    /* Add results to context for access outside handler. */
+    ctx.Set<std::vector<ClassificationResult>>("results", results);
+
+#if VERIFY_TEST_OUTPUT
+    arm::app::DumpTensor(outputTensor);
+#endif /* VERIFY_TEST_OUTPUT */
+
+    if (!PresentInferenceResult(results))
+    {
+        return false;
+    }
+
+    //profiler.PrintProfilingResult();
 
     return true;
 }

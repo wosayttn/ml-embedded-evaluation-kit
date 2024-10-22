@@ -51,7 +51,7 @@ menu "ml-embedded-evaluation-kit"
                     bool "Place areana cache on SRAM"
 
                 config MLEVK_UC_AREANA_PLACE_HYPERRAM
-                    bool "Place areana cache on external HyperRAM"
+                    bool "Place areana cache on HyperRAM"
             endchoice
         endif
 
