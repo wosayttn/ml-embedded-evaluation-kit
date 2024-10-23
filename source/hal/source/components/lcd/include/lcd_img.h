@@ -46,10 +46,10 @@ int lcd_fini(void);
  *                                  downsampled.
  * @return      0 if successful, non-zero otherwise.
  **/
-int lcd_display_image(const uint8_t* data, const uint32_t width,
-    const uint32_t height, const uint32_t channels,
-    const uint32_t pos_x, const uint32_t pos_y,
-    const uint32_t downsample_factor);
+int lcd_display_image(const uint8_t *data, const uint32_t width,
+                      const uint32_t height, const uint32_t channels,
+                      const uint32_t pos_x, const uint32_t pos_y,
+                      const uint32_t downsample_factor);
 
 /**
  * @brief       Display a given image on the LCD. This allows displaying 8 bit
@@ -63,9 +63,9 @@ int lcd_display_image(const uint8_t* data, const uint32_t width,
  *                                      they don't fit in one.
  * @return      0 if successful, non-zero otherwise.
  **/
-int lcd_display_text(const char* str, const size_t str_sz,
-     const uint32_t pos_x, const uint32_t pos_y,
-     const bool allow_multiple_lines);
+int lcd_display_text(const char *str, const size_t str_sz,
+                     const uint32_t pos_x, const uint32_t pos_y,
+                     const bool allow_multiple_lines);
 
 /**
  * @brief       Display a box with given color on LCD.
@@ -77,7 +77,7 @@ int lcd_display_text(const char* str, const size_t str_sz,
  * @return      0 if successful, non-zero otherwise.
  **/
 int lcd_display_box(const uint32_t pos_x, const uint32_t pos_y,
-    const uint32_t width, const uint32_t height, const uint16_t color);
+                    const uint32_t width, const uint32_t height, const uint16_t color);
 
 /**
  * @brief       Clear LCD.
@@ -92,5 +92,8 @@ int lcd_clear(const uint16_t color);
  * @return      0 if successful, non-zero otherwise.
  **/
 int lcd_set_text_color(const uint16_t color);
+
+int lcd_get_width(void);
+int lcd_get_height(void);
 
 #endif /* LCD_IMG_H */

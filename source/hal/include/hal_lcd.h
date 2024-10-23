@@ -46,5 +46,7 @@
 #define hal_lcd_display_box(x,y,w,h,cl)         lcd_display_box(x,y,w,h,cl)
 #define hal_lcd_clear(cl)                       lcd_clear(cl)
 #define hal_lcd_set_text_color(cl)              lcd_set_text_color(cl)
+#define hal_lcd_get_width()                     lcd_get_width()
+#define hal_lcd_get_height()                    lcd_get_height()
 
 #endif /* HAL_LCD_H */

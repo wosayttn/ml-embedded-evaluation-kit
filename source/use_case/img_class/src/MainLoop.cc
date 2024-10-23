@@ -131,46 +131,19 @@ void main_loop()
 
 #if defined(MLEVK_UC_LIVE_DEMO)
 
-#if 1
-
         ccap_view_info sViewInfo_Packet;
 
-        /* TEST CHIP use packet-y only */
         sViewInfo_Packet.u32Width    = inputImgCols;
         sViewInfo_Packet.u32Height   = inputImgRows;
         sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
         sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB888_U8;
 
-        /* Initialise CAMERA - use packet pipe only */
+        /* Initialise CAMERA - use packet/planar pipes */
         if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
         {
             printf_err("hal_camera_init failed\n");
             return;
         }
-
-#else
-
-        ccap_view_info sViewInfo_Packet;
-        ccap_view_info sViewInfo_Planar;
-
-        sViewInfo_Packet.u32Width    = inputImgCols;
-        sViewInfo_Packet.u32Height   = inputImgRows;
-        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
-
-        sViewInfo_Planar.u32Width    = inputImgCols;
-        sViewInfo_Planar.u32Height   = inputImgRows;
-        sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
-
-        /* Initialise CAMERA - use packet/planar pipes */
-        if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
-        {
-            printf_err("hal_camera_init failed\n");
-            return;
-        }
-
-#endif
 
         do
         {

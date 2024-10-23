@@ -55,7 +55,7 @@ bool PresentInferenceResult(const std::vector<arm::app::ClassificationResult> &r
     //info("Final results:\n");
     //info("Total number of inferences: 1\n");
 
-    hal_lcd_display_box(0, dataPsnTxtStartY2, 480, 272 - dataPsnTxtStartY2, COLOR_BLACK);
+    hal_lcd_display_box(0, dataPsnTxtStartY2, lcd_get_width(), lcd_get_height() - dataPsnTxtStartY2, COLOR_BLACK);
 
     for (uint32_t i = 0; i < results.size(); ++i)
     {
@@ -119,60 +119,43 @@ bool SetAppCtxIfmIdx(arm::app::ApplicationContext &ctx, uint32_t idx, const std:
 
 bool LoadLabelsVector(std::vector<std::string> &labels, void *pvLabelsBuffAddr, uint32_t u32LabelsBufLen)
 {
-    int i = 0, j = 0;
-    size_t labelsSz = 0;
-    char last;
+    int i = 0, labelsSz = 0;
     char *p = (char *)pvLabelsBuffAddr;
-    char *pvTempBufAddr = (char *)hal_memheap_helper_allocate(evAREANA_AT_HYPERRAM, u32LabelsBufLen);
-    if (pvTempBufAddr == NULL)
-    {
-        printf_err("Failed to allocate pvTempBufAddr cache memory.( %d Bytes)\n", u32LabelsBufLen);
-        return false;
-    }
 
+    /* Replace \r, \n char to '\0' symbol. */
     while (i < u32LabelsBufLen)
     {
-        /* Skip \r, \n symbol. */
         if ((p[i] == '\n') || (p[i] == '\r'))
+            p[i] = '\0';
+        i++;
+    } // while (i < u32LabelsBufLen)
+
+    /* Append last char. */
+    p[i] = '\0';
+
+    labels.clear();
+    i = 0;
+    while (i < u32LabelsBufLen)
+    {
+        /* Skip '\0' char */
+        if (p[i] == '\0')
         {
-            pvTempBufAddr[j] = '\0';
-            last = '\0';
+            i ++;
         }
         else
         {
-            if ((last == '\0') && (i != 0))
+            int len = strlen(p + i);
+
+            if (len > 0)
             {
-                j++;
                 labelsSz++;
+                //printf("[%d] %s\n", labelsSz, (p + i));
+                labels.emplace_back(p + i);
             }
 
-            /* Copy char. */
-            last = pvTempBufAddr[j] = p[i];
-            j++;
+            i += (len + 1);
         }
-        i++;
-    }
-
-    if (last != '\0')
-    {
-        pvTempBufAddr[j] = '\0';
-        labelsSz++;
-    }
-
-    memcpy(pvLabelsBuffAddr, pvTempBufAddr, u32LabelsBufLen);
-    hal_memheap_helper_free(evAREANA_AT_HYPERRAM, pvTempBufAddr);
-
-    labels.clear();
-    labels.reserve(labelsSz);
-
-    p = (char *)pvLabelsBuffAddr;
-    for (size_t i = 0; i < labelsSz; ++i)
-    {
-        //printf("[%d/%] %s\n", i, labelsSz, p);
-
-        labels.emplace_back(p);
-        p = p + (strlen(p) + 1);
-    }
+    }  // while (i < u32LabelsBufLen)
 
     return true;
 }

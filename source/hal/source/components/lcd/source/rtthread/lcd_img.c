@@ -434,3 +434,13 @@ int lcd_set_text_color(const uint16_t color)
     _SetTextColor(color);
     return 0;
 }
+
+int lcd_get_width(void)
+{
+    return s_info.width;
+}
+
+int lcd_get_height(void)
+{
+    return s_info.height;
+}
