@@ -43,6 +43,10 @@ menu "ml-embedded-evaluation-kit"
             bool "Allocate Areana cache memory on-demand."
             default y
 
+        config MLEVK_UC_AUDIO_CAPTURE_DEVICE
+            string "Specific audio device for recording"
+            default "dmic0"
+
         if MLEVK_UC_AREANA_DYNAMIC_ALLOCATE
             choice
                 prompt "Select Areana placement"

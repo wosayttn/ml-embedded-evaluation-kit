@@ -31,6 +31,13 @@ namespace app {
      **/
     bool ClassifyAudioHandler(ApplicationContext& ctx, uint32_t clipIndex, bool runAll);
 
+    /**
+     * @brief       Handles the inference event.
+     * @param[in]   ctx         Pointer to the application context.
+     * @return      true or false based on execution success.
+     **/
+    bool ClassifyAudioHandlerLive(ApplicationContext &ctx);
+
 } /* namespace app */
 } /* namespace arm */
 

@@ -34,6 +34,7 @@ extern "C" {
 #include "hal_camera.h"             /* CAMERA functions */
 #include "hal_ext_file.h"           /* File importing functions */
 #include "hal_memheap_helper.h"     /* Memory heap helper functions */
+#include "hal_audio.h"              /* Audio functions */
 
 #include <inttypes.h>
 #include <stdbool.h>

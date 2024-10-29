@@ -24,13 +24,22 @@
 #include "log_macros.h"             /* Logging functions */
 #include "BufAttributes.hpp"        /* Buffer attributes to be applied */
 
-namespace arm {
-namespace app {
+namespace arm
+{
+namespace app
+{
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    static uint8_t *tensorArena;
+#else
     static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
-    namespace kws {
-        extern uint8_t* GetModelPointer();
-        extern size_t GetModelLen();
-    } /* namespace kws */
+#endif
+#if !defined(MLEVK_UC_DYNAMIC_LOAD)
+namespace kws
+{
+extern uint8_t *GetModelPointer();
+extern size_t GetModelLen();
+} /* namespace kws */
+#endif
 } /* namespace app */
 } /* namespace arm */
 
@@ -41,7 +50,8 @@ enum opcodes
     MENU_OPT_RUN_INF_CHOSEN,         /* Run on a user provided vector index. */
     MENU_OPT_RUN_INF_ALL,            /* Run inference on all. */
     MENU_OPT_SHOW_MODEL_INFO,        /* Show model info. */
-    MENU_OPT_LIST_AUDIO_CLIPS        /* List the current baked audio clips. */
+    MENU_OPT_LIST_AUDIO_CLIPS,       /* List the current baked audio clips. */
+    MENU_OPT_QUIT                    /* Quit. */
 };
 
 static void DisplayMenu()
@@ -53,7 +63,8 @@ static void DisplayMenu()
     printf("  %u. Classify audio clip at chosen index\n", MENU_OPT_RUN_INF_CHOSEN);
     printf("  %u. Run classification on all audio clips\n", MENU_OPT_RUN_INF_ALL);
     printf("  %u. Show NN model info\n", MENU_OPT_SHOW_MODEL_INFO);
-    printf("  %u. List audio clips\n\n", MENU_OPT_LIST_AUDIO_CLIPS);
+    printf("  %u. List audio clips\n", MENU_OPT_LIST_AUDIO_CLIPS);
+    printf("  %u. Quit\n\n", MENU_OPT_QUIT);
     printf("  Choice: ");
     fflush(stdout);
 }
@@ -61,59 +72,131 @@ static void DisplayMenu()
 void main_loop()
 {
     arm::app::MicroNetKwsModel model;  /* Model wrapper object. */
+    void *pvAreanaBufAddr = arm::app::tensorArena;
+    uint32_t u32AreanaBufLen = ACTIVATION_BUF_SZ;
 
-    /* Load the model. */
-    if (!model.Init(arm::app::tensorArena,
-                    sizeof(arm::app::tensorArena),
-                    arm::app::kws::GetModelPointer(),
-                    arm::app::kws::GetModelLen())) {
-        printf_err("Failed to initialise model\n");
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    pvAreanaBufAddr = (uint8_t *)hal_memheap_helper_allocate(
+#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
+                          evAREANA_AT_SRAM,
+#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
+                          evAREANA_AT_HYPERRAM,
+#endif
+                          ACTIVATION_BUF_SZ);
+    if (pvAreanaBufAddr == NULL)
+    {
+        printf_err("Failed to allocate tensorAreana cache memory.( %d Bytes)\n", ACTIVATION_BUF_SZ);
         return;
     }
+#endif
 
-    /* Instantiate application context. */
-    arm::app::ApplicationContext caseContext;
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+#define DEF_MODEL_FILE_NAME      "kws_micronet_m_vela_H256.tflite"
+#define DEF_LABEL_FILE_NAME      "micronet_kws_labels.txt"
 
-    arm::app::Profiler profiler{"kws"};
-    caseContext.Set<arm::app::Profiler&>("profiler", profiler);
-    caseContext.Set<arm::app::Model&>("model", model);
-    caseContext.Set<uint32_t>("clipIndex", 0);
-    caseContext.Set<int>("frameLength", arm::app::kws::g_FrameLength);
-    caseContext.Set<int>("frameStride", arm::app::kws::g_FrameStride);
-    caseContext.Set<float>("scoreThreshold", arm::app::kws::g_ScoreThreshold);  /* Normalised score threshold. */
+    void *pvModelBufAddr = NULL;
+    uint32_t u32ModelBufLen = 0;
+    void *pvLabelBufAddr = NULL;
+    uint32_t u32LabelBufLen = 0;
 
-    arm::app::KwsClassifier classifier;  /* classifier wrapper object. */
-    caseContext.Set<arm::app::KwsClassifier&>("classifier", classifier);
+    hal_ext_file_list(MLEVK_UC_DYNAMIC_LOAD_PATH);
+    if (hal_ext_file_import(MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME, &pvModelBufAddr, &u32ModelBufLen) < 0)
+    {
+        printf_err("Failed to load model - %s\n", MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_MODEL_FILE_NAME);
+        goto exit_main_loop;
+    }
 
-    std::vector <std::string> labels;
-    GetLabelsVector(labels);
+    if (hal_ext_file_import(MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_LABEL_FILE_NAME, &pvLabelBufAddr, &u32LabelBufLen) < 0)
+    {
+        printf_err("Failed to load label - %s\n", MLEVK_UC_DYNAMIC_LOAD_PATH "/" DEF_LABEL_FILE_NAME);
+        goto exit_main_loop;
+    }
 
-    caseContext.Set<const std::vector <std::string>&>("labels", labels);
+#else
+    void *pvModelBufAddr = arm::app::object_detection::GetModelPointer();
+    uint32_t u32ModelBufLen = arm::app::object_detection::GetModelLen();
+#endif
 
-    bool executionSuccessful = true;
-    constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+    /* Load the model. */
+    if (!model.Init((uint8_t *)pvAreanaBufAddr,
+                    u32AreanaBufLen,
+                    (const uint8_t *)pvModelBufAddr,
+                    u32ModelBufLen))
+    {
+        printf_err("Failed to initialise model\n");
+    }
+    else
+    {
+        /* Instantiate application context. */
+        arm::app::ApplicationContext caseContext;
 
-    /* Loop. */
-    do {
-        int menuOption = MENU_OPT_RUN_INF_NEXT;
-        if (bUseMenu) {
-            DisplayMenu();
-            menuOption = arm::app::ReadUserInputAsInt();
-            printf("\n");
+        arm::app::Profiler profiler{"kws"};
+        caseContext.Set<arm::app::Profiler &>("profiler", profiler);
+        caseContext.Set<arm::app::Model &>("model", model);
+        caseContext.Set<int>("frameLength", arm::app::kws::g_FrameLength);
+        caseContext.Set<int>("frameStride", arm::app::kws::g_FrameStride);
+        caseContext.Set<float>("scoreThreshold", arm::app::kws::g_ScoreThreshold);  /* Normalised score threshold. */
+
+        arm::app::KwsClassifier classifier;  /* classifier wrapper object. */
+        caseContext.Set<arm::app::KwsClassifier &>("classifier", classifier);
+
+        std::vector <std::string> labels;
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+        LoadLabelsVector(labels, pvLabelBufAddr, u32LabelBufLen);
+#else
+        GetLabelsVector(labels);
+#endif
+        caseContext.Set<const std::vector <std::string>&>("labels", labels);
+
+        /* Loop. */
+        bool executionSuccessful = true;
+
+#if defined(MLEVK_UC_LIVE_DEMO)
+
+        if (hal_audio_capture_init(16000, 16, 1) < 0)
+        {
+            printf_err("Failed to initialise audio capture device\n");
+            return;
         }
-        switch (menuOption) {
+
+        do
+        {
+            executionSuccessful = ClassifyAudioHandlerLive(caseContext);
+        }
+        while (executionSuccessful);
+
+#else
+
+        caseContext.Set<uint32_t>("clipIndex", 0);
+
+        /* Loop. */
+        constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+
+        /* Loop. */
+        do
+        {
+            int menuOption = MENU_OPT_RUN_INF_NEXT;
+            if (bUseMenu)
+            {
+                DisplayMenu();
+                menuOption = arm::app::ReadUserInputAsInt();
+                printf("\n");
+            }
+            switch (menuOption)
+            {
             case MENU_OPT_RUN_INF_NEXT:
                 executionSuccessful = ClassifyAudioHandler(caseContext, caseContext.Get<uint32_t>("clipIndex"), false);
                 break;
-            case MENU_OPT_RUN_INF_CHOSEN: {
-                printf("    Enter the audio clip index [0, %d]: ", NUMBER_OF_FILES-1);
+            case MENU_OPT_RUN_INF_CHOSEN:
+            {
+                printf("    Enter the audio clip index [0, %d]: ", NUMBER_OF_FILES - 1);
                 fflush(stdout);
                 auto clipIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
                 executionSuccessful = ClassifyAudioHandler(caseContext, clipIndex, false);
                 break;
             }
             case MENU_OPT_RUN_INF_ALL:
-                executionSuccessful = ClassifyAudioHandler(caseContext,caseContext.Get<uint32_t>("clipIndex"), true);
+                executionSuccessful = ClassifyAudioHandler(caseContext, caseContext.Get<uint32_t>("clipIndex"), true);
                 break;
             case MENU_OPT_SHOW_MODEL_INFO:
                 executionSuccessful = model.ShowModelInfoHandler();
@@ -121,10 +204,44 @@ void main_loop()
             case MENU_OPT_LIST_AUDIO_CLIPS:
                 executionSuccessful = ListFilesHandler(caseContext);
                 break;
+            case MENU_OPT_QUIT:
+                executionSuccessful = false;
+                break;
             default:
                 printf("Incorrect choice, try again.");
                 break;
+            }
         }
-    } while (executionSuccessful && bUseMenu);
+        while (executionSuccessful && bUseMenu);
+#endif
+    }
+
+exit_main_loop:
+
+#if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
+    if (pvAreanaBufAddr)
+    {
+        hal_memheap_helper_free(
+#if defined(MLEVK_UC_AREANA_PLACE_SRAM)
+            evAREANA_AT_SRAM,
+#elif defined(MLEVK_UC_AREANA_PLACE_HYPERRAM)
+            evAREANA_AT_HYPERRAM,
+#endif
+            pvAreanaBufAddr);
+#endif
+    }
+
+#if defined(MLEVK_UC_DYNAMIC_LOAD)
+    if (pvModelBufAddr)
+    {
+        hal_ext_file_release(pvModelBufAddr);
+    }
+
+    if (pvLabelBufAddr)
+    {
+        hal_ext_file_release(pvLabelBufAddr);
+    }
+#endif
+
     info("Main loop terminated.\n");
 }

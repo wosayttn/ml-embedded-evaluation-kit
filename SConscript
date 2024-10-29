@@ -668,6 +668,7 @@ mlevk_INCS = [
     mlevk_source_cwd + '/hal/source/components/lcd/source/rtthread',
     mlevk_source_cwd + '/hal/source/components/lcd/include',
     mlevk_source_cwd + '/hal/source/components/camera/include',
+    mlevk_source_cwd + '/hal/source/components/audio/include',
     mlevk_source_cwd + '/hal/source/components/ext_file/include',
     mlevk_source_cwd + '/hal/source/components/memheap_helper/include',
     mlevk_source_cwd + '/hal/source/components/stdout/include',
@@ -688,6 +689,7 @@ source/application/api/common/source/TensorFlowLiteMicro.cc
 source/hal/source/components/stdout/source/user_input.c
 source/hal/source/components/lcd/source/rtthread/lcd_img.c
 source/hal/source/components/camera/source/camera_img.c
+source/hal/source/components/audio/source/audio_helper.c
 source/hal/source/components/ext_file/source/ext_file.c
 source/hal/source/components/memheap_helper/source/memheap_helper.c
 source/hal/source/components/npu/ethosu_impl_rtt.c
