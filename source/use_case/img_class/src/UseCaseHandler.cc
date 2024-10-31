@@ -174,6 +174,7 @@ bool ClassifyImageHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAl
     return true;
 }
 
+
 /* Image classification inference handler. */
 bool ClassifyImageHandlerLive(ApplicationContext &ctx)
 {

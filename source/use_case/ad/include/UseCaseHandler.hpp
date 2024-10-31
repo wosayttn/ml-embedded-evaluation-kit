@@ -18,16 +18,25 @@
 #define AD_EVT_HANDLER_H
 #include "AppContext.hpp"
 
-namespace arm {
-namespace app {
-    /**
-     * @brief       Handles the inference event
-     * @param[in]   ctx         pointer to the application context
-     * @param[in]   dataIndex   index to the input data to classify
-     * @param[in]   runAll      flag to request classification of all the available audio clips
-     * @return      True or false based on execution success
-     **/
-    bool ClassifyVibrationHandler(ApplicationContext& ctx, uint32_t dataIndex, bool runAll);
+namespace arm
+{
+namespace app
+{
+/**
+ * @brief       Handles the inference event
+ * @param[in]   ctx         pointer to the application context
+ * @param[in]   dataIndex   index to the input data to classify
+ * @param[in]   runAll      flag to request classification of all the available audio clips
+ * @return      True or false based on execution success
+ **/
+bool ClassifyVibrationHandler(ApplicationContext &ctx, uint32_t dataIndex, bool runAll);
+
+/**
+ * @brief       Handles the inference event
+ * @param[in]   ctx         pointer to the application context
+ * @return      True or false based on execution success
+ **/
+bool ClassifyVibrationHandlerLive(ApplicationContext &ctx);
 } /* namespace app */
 } /* namespace arm */
 #endif /* AD_EVT_HANDLER_H */

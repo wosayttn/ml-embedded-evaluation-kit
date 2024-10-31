@@ -99,6 +99,7 @@ void main_loop()
                     u32ModelBufLen))
     {
         printf_err("Failed to initialise model\n");
+        goto exit_main_loop;
     }
     else
     {
@@ -143,7 +144,7 @@ void main_loop()
         if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
         {
             printf_err("hal_camera_init failed\n");
-            return;
+            goto exit_main_loop;
         }
 
 #else
@@ -165,7 +166,7 @@ void main_loop()
         if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
         {
             printf_err("hal_camera_init failed\n");
-            return;
+            goto exit_main_loop;
         }
 
 #endif
@@ -211,10 +212,8 @@ void main_loop()
                 executionSuccessful = ClassifyImageHandler(caseContext, caseContext.Get<uint32_t>("imgIndex"), true);
                 break;
             case common::MENU_OPT_SHOW_MODEL_INFO:
-            {
                 executionSuccessful = model.ShowModelInfoHandler();
                 break;
-            }
             case common::MENU_OPT_LIST_IFM:
                 executionSuccessful = ListFilesHandler(caseContext);
                 break;

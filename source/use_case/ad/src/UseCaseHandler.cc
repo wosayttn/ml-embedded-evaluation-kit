@@ -27,217 +27,336 @@
 #include "hal.h"
 #include "log_macros.h"
 
-namespace arm {
-namespace app {
+namespace arm
+{
+namespace app
+{
 
-    /**
-     * @brief           Presents inference results using the data presentation
-     *                  object.
-     * @param[in]       result      average sum of classification results
-     * @param[in]       threshold   if larger than this value we have an anomaly
-     * @return          true if successful, false otherwise
-     **/
-    static bool PresentInferenceResult(float result, float threshold);
+/**
+ * @brief           Presents inference results using the data presentation
+ *                  object.
+ * @param[in]       result      average sum of classification results
+ * @param[in]       threshold   if larger than this value we have an anomaly
+ * @return          true if successful, false otherwise
+ **/
+static bool PresentInferenceResult(float result, float threshold);
 
-    /** @brief      Given a wav file name return AD model output index.
-     *  @param[in]  wavFileName Audio WAV filename.
-     *                          File name should be in format anything_goes_XX_here.wav
-     *                          where XX is the machine ID e.g. 00, 02, 04 or 06
-     *  @return     AD model output index as 8 bit integer.
-     **/
-    static int8_t OutputIndexFromFileName(std::string wavFileName);
+/** @brief      Given a wav file name return AD model output index.
+ *  @param[in]  wavFileName Audio WAV filename.
+ *                          File name should be in format anything_goes_XX_here.wav
+ *                          where XX is the machine ID e.g. 00, 02, 04 or 06
+ *  @return     AD model output index as 8 bit integer.
+ **/
+static int8_t OutputIndexFromFileName(std::string wavFileName);
 
-    /* Anomaly Detection inference handler */
-    bool ClassifyVibrationHandler(ApplicationContext& ctx, uint32_t clipIndex, bool runAll)
+/* Anomaly Detection inference handler */
+bool ClassifyVibrationHandler(ApplicationContext &ctx, uint32_t clipIndex, bool runAll)
+{
+    constexpr uint32_t dataPsnTxtInfStartX = 20;
+    constexpr uint32_t dataPsnTxtInfStartY = 40;
+
+    auto &model = ctx.Get<Model &>("model");
+
+    /* If the request has a valid size, set the audio index */
+    if (clipIndex < NUMBER_OF_FILES)
     {
-        constexpr uint32_t dataPsnTxtInfStartX = 20;
-        constexpr uint32_t dataPsnTxtInfStartY = 40;
-
-        auto& model = ctx.Get<Model&>("model");
-
-        /* If the request has a valid size, set the audio index */
-        if (clipIndex < NUMBER_OF_FILES) {
-            if (!SetAppCtxIfmIdx(ctx, clipIndex, "clipIndex")) {
-                return false;
-            }
+        if (!SetAppCtxIfmIdx(ctx, clipIndex, "clipIndex"))
+        {
+            return false;
         }
-        if (!model.IsInited()) {
-            printf_err("Model is not initialised! Terminating processing.\n");
+    }
+    if (!model.IsInited())
+    {
+        printf_err("Model is not initialised! Terminating processing.\n");
+        return false;
+    }
+
+    auto &profiler                = ctx.Get<Profiler &>("profiler");
+    const auto melSpecFrameLength = ctx.Get<uint32_t>("frameLength");
+    const auto melSpecFrameStride = ctx.Get<uint32_t>("frameStride");
+    const auto scoreThreshold     = ctx.Get<float>("scoreThreshold");
+    const auto trainingMean       = ctx.Get<float>("trainingMean");
+    auto startClipIdx             = ctx.Get<uint32_t>("clipIndex");
+
+    TfLiteTensor *outputTensor = model.GetOutputTensor(0);
+    TfLiteTensor *inputTensor  = model.GetInputTensor(0);
+
+    if (!inputTensor->dims)
+    {
+        printf_err("Invalid input tensor dims\n");
+        return false;
+    }
+
+    AdPreProcess preProcess{inputTensor, melSpecFrameLength, melSpecFrameStride, trainingMean};
+
+    AdPostProcess postProcess{outputTensor};
+
+    do
+    {
+        hal_lcd_clear(COLOR_BLACK);
+
+        auto currentIndex = ctx.Get<uint32_t>("clipIndex");
+
+        /* Get the output index to look at based on id in the filename. */
+        int8_t machineOutputIndex = OutputIndexFromFileName(GetFilename(currentIndex));
+        if (machineOutputIndex == -1)
+        {
             return false;
         }
 
-        auto& profiler                = ctx.Get<Profiler&>("profiler");
-        const auto melSpecFrameLength = ctx.Get<uint32_t>("frameLength");
-        const auto melSpecFrameStride = ctx.Get<uint32_t>("frameStride");
-        const auto scoreThreshold     = ctx.Get<float>("scoreThreshold");
-        const auto trainingMean       = ctx.Get<float>("trainingMean");
-        auto startClipIdx             = ctx.Get<uint32_t>("clipIndex");
+        /* Creating a sliding window through the whole audio clip. */
+        auto audioDataSlider =
+            audio::SlidingWindow<const int16_t>(GetAudioArray(currentIndex),
+                                                GetAudioArraySize(currentIndex),
+                                                preProcess.GetAudioWindowSize(),
+                                                preProcess.GetAudioDataStride());
 
-        TfLiteTensor* outputTensor = model.GetOutputTensor(0);
-        TfLiteTensor* inputTensor  = model.GetInputTensor(0);
+        /* Result is an averaged sum over inferences. */
+        float result = 0;
 
-        if (!inputTensor->dims) {
-            printf_err("Invalid input tensor dims\n");
-            return false;
-        }
+        /* Display message on the LCD - inference running. */
+        std::string str_inf{"Running inference... "};
+        hal_lcd_display_text(
+            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
 
-        AdPreProcess preProcess{inputTensor, melSpecFrameLength, melSpecFrameStride, trainingMean};
+        info("Running inference on audio clip %" PRIu32 " => %s\n",
+             currentIndex,
+             GetFilename(currentIndex));
 
-        AdPostProcess postProcess{outputTensor};
+        /* Start sliding through audio clip. */
+        while (audioDataSlider.HasNext())
+        {
+            const int16_t *inferenceWindow = audioDataSlider.Next();
 
-        do {
-            hal_lcd_clear(COLOR_BLACK);
+            preProcess.SetAudioWindowIndex(audioDataSlider.Index());
+            preProcess.DoPreProcess(inferenceWindow, preProcess.GetAudioWindowSize());
 
-            auto currentIndex = ctx.Get<uint32_t>("clipIndex");
+            info("Inference %zu/%zu\n",
+                 audioDataSlider.Index() + 1,
+                 audioDataSlider.TotalStrides() + 1);
 
-            /* Get the output index to look at based on id in the filename. */
-            int8_t machineOutputIndex = OutputIndexFromFileName(GetFilename(currentIndex));
-            if (machineOutputIndex == -1) {
+            /* Run inference over this audio clip sliding window */
+            if (!RunInference(model, profiler))
+            {
                 return false;
             }
 
-            /* Creating a sliding window through the whole audio clip. */
-            auto audioDataSlider =
-                audio::SlidingWindow<const int16_t>(GetAudioArray(currentIndex),
-                                                    GetAudioArraySize(currentIndex),
-                                                    preProcess.GetAudioWindowSize(),
-                                                    preProcess.GetAudioDataStride());
-
-            /* Result is an averaged sum over inferences. */
-            float result = 0;
-
-            /* Display message on the LCD - inference running. */
-            std::string str_inf{"Running inference... "};
-            hal_lcd_display_text(
-                str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
-
-            info("Running inference on audio clip %" PRIu32 " => %s\n",
-                 currentIndex,
-                 GetFilename(currentIndex));
-
-            /* Start sliding through audio clip. */
-            while (audioDataSlider.HasNext()) {
-                const int16_t* inferenceWindow = audioDataSlider.Next();
-
-                preProcess.SetAudioWindowIndex(audioDataSlider.Index());
-                preProcess.DoPreProcess(inferenceWindow, preProcess.GetAudioWindowSize());
-
-                info("Inference %zu/%zu\n",
-                     audioDataSlider.Index() + 1,
-                     audioDataSlider.TotalStrides() + 1);
-
-                /* Run inference over this audio clip sliding window */
-                if (!RunInference(model, profiler)) {
-                    return false;
-                }
-
-                postProcess.DoPostProcess();
-                result += 0 - postProcess.GetOutputValue(machineOutputIndex);
+            postProcess.DoPostProcess();
+            result += 0 - postProcess.GetOutputValue(machineOutputIndex);
 
 #if VERIFY_TEST_OUTPUT
-                DumpTensor(outputTensor);
+            DumpTensor(outputTensor);
 #endif        /* VERIFY_TEST_OUTPUT */
-            } /* while (audioDataSlider.HasNext()) */
+        } /* while (audioDataSlider.HasNext()) */
 
-            /* Use average over whole clip as final score. */
-            result /= (audioDataSlider.TotalStrides() + 1);
+        /* Use average over whole clip as final score. */
+        result /= (audioDataSlider.TotalStrides() + 1);
 
-            /* Erase. */
-            str_inf = std::string(str_inf.size(), ' ');
-            hal_lcd_display_text(
-                str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
-
-            ctx.Set<float>("result", result);
-            if (!PresentInferenceResult(result, scoreThreshold)) {
-                return false;
-            }
-
-            profiler.PrintProfilingResult();
-
-            IncrementAppCtxIfmIdx(ctx, "clipIndex");
-
-        } while (runAll && ctx.Get<uint32_t>("clipIndex") != startClipIdx);
-
-        return true;
-    }
-
-    static bool PresentInferenceResult(float result, float threshold)
-    {
-        constexpr uint32_t dataPsnTxtStartX1 = 20;
-        constexpr uint32_t dataPsnTxtStartY1 = 30;
-        constexpr uint32_t dataPsnTxtYIncr   = 16; /* Row index increment */
-
-        hal_lcd_set_text_color(COLOR_GREEN);
-
-        /* Display each result */
-        uint32_t rowIdx1 = dataPsnTxtStartY1 + 2 * dataPsnTxtYIncr;
-
-        std::string anomalyScore =
-            std::string{"Average anomaly score is: "} + std::to_string(result);
-        std::string anomalyThreshold =
-            std::string("Anomaly threshold is: ") + std::to_string(threshold);
-
-        std::string anomalyResult;
-        if (result > threshold) {
-            anomalyResult += std::string("Anomaly detected!");
-        } else {
-            anomalyResult += std::string("Everything fine, no anomaly detected!");
-        }
-
+        /* Erase. */
+        str_inf = std::string(str_inf.size(), ' ');
         hal_lcd_display_text(
-            anomalyScore.c_str(), anomalyScore.size(), dataPsnTxtStartX1, rowIdx1, false);
+            str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, 0);
 
-        info("%s\n", anomalyScore.c_str());
-        info("%s\n", anomalyThreshold.c_str());
-        info("%s\n", anomalyResult.c_str());
+        ctx.Set<float>("result", result);
+        if (!PresentInferenceResult(result, scoreThreshold))
+        {
+            return false;
+        }
 
-        return true;
+        profiler.PrintProfilingResult();
+
+        IncrementAppCtxIfmIdx(ctx, "clipIndex");
+
     }
+    while (runAll && ctx.Get<uint32_t>("clipIndex") != startClipIdx);
 
-    static int8_t OutputIndexFromFileName(std::string wavFileName)
+    return true;
+}
+
+bool ClassifyVibrationHandlerLive(ApplicationContext &ctx)
+{
+    constexpr uint32_t dataPsnTxtInfStartX = 20;
+    constexpr uint32_t dataPsnTxtInfStartY = 40;
+
+    auto &model = ctx.Get<Model &>("model");
+
+    if (!model.IsInited())
     {
-        /* Filename is assumed in the form machine_id_00.wav */
-        std::string delimiter = "_"; /* First character used to split the file name up. */
-        size_t delimiterStart;
-        std::string subString;
-        size_t machineIdxInString =
-            3; /* Which part of the file name the machine id should be at. */
-
-        for (size_t i = 0; i < machineIdxInString; ++i) {
-            delimiterStart = wavFileName.find(delimiter);
-            subString      = wavFileName.substr(0, delimiterStart);
-            wavFileName.erase(0, delimiterStart + delimiter.length());
-        }
-
-        /* At this point substring should be 00.wav */
-        delimiter      = "."; /* Second character used to split the file name up. */
-        delimiterStart = subString.find(delimiter);
-        subString =
-            (delimiterStart != std::string::npos) ? subString.substr(0, delimiterStart) : subString;
-
-        auto is_number = [](const std::string& str) -> bool {
-            std::string::const_iterator it = str.begin();
-            while (it != str.end() && std::isdigit(*it))
-                ++it;
-            return !str.empty() && it == str.end();
-        };
-
-        const int8_t machineIdx = is_number(subString) ? std::stoi(subString) : -1;
-
-        /* Return corresponding index in the output vector. */
-        if (machineIdx == 0) {
-            return 0;
-        } else if (machineIdx == 2) {
-            return 1;
-        } else if (machineIdx == 4) {
-            return 2;
-        } else if (machineIdx == 6) {
-            return 3;
-        } else {
-            printf_err("%d is an invalid machine index \n", machineIdx);
-            return -1;
-        }
+        printf_err("Model is not initialised! Terminating processing.\n");
+        return false;
     }
+
+    auto &profiler                = ctx.Get<Profiler &>("profiler");
+    const auto melSpecFrameLength = ctx.Get<uint32_t>("frameLength");
+    const auto melSpecFrameStride = ctx.Get<uint32_t>("frameStride");
+    const auto scoreThreshold     = ctx.Get<float>("scoreThreshold");
+    const auto trainingMean       = ctx.Get<float>("trainingMean");
+    auto startClipIdx             = ctx.Get<uint32_t>("clipIndex");
+
+    TfLiteTensor *outputTensor = model.GetOutputTensor(0);
+    TfLiteTensor *inputTensor  = model.GetInputTensor(0);
+
+    if (!inputTensor->dims)
+    {
+        printf_err("Invalid input tensor dims\n");
+        return false;
+    }
+
+    AdPreProcess preProcess{inputTensor, melSpecFrameLength, melSpecFrameStride, trainingMean};
+
+    AdPostProcess postProcess{outputTensor};
+
+    /* Creating a sliding window through the whole audio clip. */
+    int16_t *pu16ClipBufAddr = NULL;
+    uint32_t u32ClipSize = hal_audio_capture_get_frame((uint8_t **)&pu16ClipBufAddr);
+    if (!pu16ClipBufAddr || (u32ClipSize <= 0))
+    {
+        printf_err("failed to get clip frame buffer\n");
+        return false;
+    }
+
+    /* Creating a sliding window through the whole audio clip. */
+    auto audioDataSlider =
+        audio::SlidingWindow<const int16_t>(pu16ClipBufAddr,
+                                            u32ClipSize,
+                                            preProcess.GetAudioWindowSize(),
+                                            preProcess.GetAudioDataStride());
+
+    /* Result is an averaged sum over inferences. */
+    float result = 0;
+
+    /* Start sliding through audio clip. */
+    while (audioDataSlider.HasNext())
+    {
+        const int16_t *inferenceWindow = audioDataSlider.Next();
+
+        preProcess.SetAudioWindowIndex(audioDataSlider.Index());
+        preProcess.DoPreProcess(inferenceWindow, preProcess.GetAudioWindowSize());
+
+        info("Inference %zu/%zu\n",
+             audioDataSlider.Index() + 1,
+             audioDataSlider.TotalStrides() + 1);
+
+        /* Run inference over this audio clip sliding window */
+        if (!RunInference(model, profiler))
+        {
+            return false;
+        }
+
+        postProcess.DoPostProcess();
+        result += 0 - postProcess.GetOutputValue(0);
+
+#if VERIFY_TEST_OUTPUT
+        DumpTensor(outputTensor);
+#endif        /* VERIFY_TEST_OUTPUT */
+
+    } /* while (audioDataSlider.HasNext()) */
+
+    /* Use average over whole clip as final score. */
+    result /= (audioDataSlider.TotalStrides() + 1);
+
+    ctx.Set<float>("result", result);
+    if (!PresentInferenceResult(result, scoreThreshold))
+    {
+        return false;
+    }
+
+    // profiler.PrintProfilingResult();
+
+    return true;
+}
+
+static bool PresentInferenceResult(float result, float threshold)
+{
+    constexpr uint32_t dataPsnTxtStartX1 = 20;
+    constexpr uint32_t dataPsnTxtStartY1 = 30;
+    constexpr uint32_t dataPsnTxtYIncr   = 16; /* Row index increment */
+
+    hal_lcd_set_text_color(COLOR_GREEN);
+
+    /* Display each result */
+    uint32_t rowIdx1 = dataPsnTxtStartY1 + 2 * dataPsnTxtYIncr;
+
+    std::string anomalyScore =
+        std::string{"Average anomaly score is: "} + std::to_string(result);
+    std::string anomalyThreshold =
+        std::string("Anomaly threshold is: ") + std::to_string(threshold);
+
+    std::string anomalyResult;
+    if (result > threshold)
+    {
+        anomalyResult += std::string("Anomaly detected!");
+    }
+    else
+    {
+        anomalyResult += std::string("Everything fine, no anomaly detected!");
+    }
+
+    hal_lcd_display_text(
+        anomalyScore.c_str(), anomalyScore.size(), dataPsnTxtStartX1, rowIdx1, false);
+
+    info("%s\n", anomalyScore.c_str());
+    info("%s\n", anomalyThreshold.c_str());
+    info("%s\n", anomalyResult.c_str());
+
+    return true;
+}
+
+static int8_t OutputIndexFromFileName(std::string wavFileName)
+{
+    /* Filename is assumed in the form machine_id_00.wav */
+    std::string delimiter = "_"; /* First character used to split the file name up. */
+    size_t delimiterStart;
+    std::string subString;
+    size_t machineIdxInString =
+        3; /* Which part of the file name the machine id should be at. */
+
+    for (size_t i = 0; i < machineIdxInString; ++i)
+    {
+        delimiterStart = wavFileName.find(delimiter);
+        subString      = wavFileName.substr(0, delimiterStart);
+        wavFileName.erase(0, delimiterStart + delimiter.length());
+    }
+
+    /* At this point substring should be 00.wav */
+    delimiter      = "."; /* Second character used to split the file name up. */
+    delimiterStart = subString.find(delimiter);
+    subString =
+        (delimiterStart != std::string::npos) ? subString.substr(0, delimiterStart) : subString;
+
+    auto is_number = [](const std::string & str) -> bool
+    {
+        std::string::const_iterator it = str.begin();
+        while (it != str.end() && std::isdigit(*it))
+            ++it;
+        return !str.empty() && it == str.end();
+    };
+
+    const int8_t machineIdx = is_number(subString) ? std::stoi(subString) : -1;
+
+    /* Return corresponding index in the output vector. */
+    if (machineIdx == 0)
+    {
+        return 0;
+    }
+    else if (machineIdx == 2)
+    {
+        return 1;
+    }
+    else if (machineIdx == 4)
+    {
+        return 2;
+    }
+    else if (machineIdx == 6)
+    {
+        return 3;
+    }
+    else
+    {
+        printf_err("%d is an invalid machine index \n", machineIdx);
+        return -1;
+    }
+}
 
 } /* namespace app */
 } /* namespace arm */

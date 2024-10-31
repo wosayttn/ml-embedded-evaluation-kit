@@ -93,7 +93,6 @@ void main_loop()
 #if defined(MLEVK_UC_DYNAMIC_LOAD)
 #define DEF_MODEL_FILE_NAME      "kws_micronet_m_vela_H256.tflite"
 #define DEF_LABEL_FILE_NAME      "micronet_kws_labels.txt"
-
     void *pvModelBufAddr = NULL;
     uint32_t u32ModelBufLen = 0;
     void *pvLabelBufAddr = NULL;
@@ -124,6 +123,7 @@ void main_loop()
                     u32ModelBufLen))
     {
         printf_err("Failed to initialise model\n");
+        goto exit_main_loop;
     }
     else
     {
@@ -153,10 +153,11 @@ void main_loop()
 
 #if defined(MLEVK_UC_LIVE_DEMO)
 
+        /* Set 16K Sample rate, 16-bit, mono for this model. */
         if (hal_audio_capture_init(16000, 16, 1) < 0)
         {
             printf_err("Failed to initialise audio capture device\n");
-            return;
+            goto exit_main_loop;
         }
 
         do
@@ -213,6 +214,7 @@ void main_loop()
             }
         }
         while (executionSuccessful && bUseMenu);
+
 #endif
     }
 
