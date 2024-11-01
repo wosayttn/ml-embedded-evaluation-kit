@@ -111,6 +111,12 @@ bool ClassifyVibrationHandler(ApplicationContext &ctx, uint32_t clipIndex, bool 
                                                 preProcess.GetAudioWindowSize(),
                                                 preProcess.GetAudioDataStride());
 
+        info("CS: %d, WS:%d, DS:%d, TS:%d\n",
+             GetAudioArraySize(currentIndex),
+             preProcess.GetAudioWindowSize(),
+             preProcess.GetAudioDataStride(),
+             audioDataSlider.TotalStrides());
+
         /* Result is an averaged sum over inferences. */
         float result = 0;
 
@@ -191,7 +197,6 @@ bool ClassifyVibrationHandlerLive(ApplicationContext &ctx)
     const auto melSpecFrameStride = ctx.Get<uint32_t>("frameStride");
     const auto scoreThreshold     = ctx.Get<float>("scoreThreshold");
     const auto trainingMean       = ctx.Get<float>("trainingMean");
-    auto startClipIdx             = ctx.Get<uint32_t>("clipIndex");
 
     TfLiteTensor *outputTensor = model.GetOutputTensor(0);
     TfLiteTensor *inputTensor  = model.GetInputTensor(0);
@@ -203,67 +208,100 @@ bool ClassifyVibrationHandlerLive(ApplicationContext &ctx)
     }
 
     AdPreProcess preProcess{inputTensor, melSpecFrameLength, melSpecFrameStride, trainingMean};
-
     AdPostProcess postProcess{outputTensor};
 
-    /* Creating a sliding window through the whole audio clip. */
-    int16_t *pu16ClipBufAddr = NULL;
-    uint32_t u32ClipSize = hal_audio_capture_get_frame((uint8_t **)&pu16ClipBufAddr);
-    if (!pu16ClipBufAddr || (u32ClipSize <= 0))
+#define MODEL_SAMPLE_RATE        16000
+#define MODEL_SAMPLE_BIT         16
+#define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
+#define MODEL_CHANNEL            1
+#define AUDIO_CLIP_BYTESIZE      (preProcess.GetAudioWindowSize() * MODEL_SAMPLE_BYTE)
+
+    info("AUDIO_CLIP_BYTESIZE: %d, WS:%d, DS:%d\n",
+         AUDIO_CLIP_BYTESIZE,
+         preProcess.GetAudioWindowSize(),
+         preProcess.GetAudioDataStride());
+
+    /* Set 16K Sample rate, 16-bit, mono for this model. */
+    if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
     {
-        printf_err("failed to get clip frame buffer\n");
+        printf_err("Failed to initialise audio capture device\n");
         return false;
     }
 
-    /* Creating a sliding window through the whole audio clip. */
-    auto audioDataSlider =
-        audio::SlidingWindow<const int16_t>(pu16ClipBufAddr,
-                                            u32ClipSize,
-                                            preProcess.GetAudioWindowSize(),
-                                            preProcess.GetAudioDataStride());
-
-    /* Result is an averaged sum over inferences. */
-    float result = 0;
-
-    /* Start sliding through audio clip. */
-    while (audioDataSlider.HasNext())
+    uint8_t *pu8AudioClipFrameBuf = NULL;
+    pu8AudioClipFrameBuf = (uint8_t *)hal_memheap_helper_allocate(
+                               evAREANA_AT_SRAM,
+                               AUDIO_CLIP_BYTESIZE);
+    if (pu8AudioClipFrameBuf == NULL)
     {
-        const int16_t *inferenceWindow = audioDataSlider.Next();
+        printf_err("Failed to allocate audio clip memory.( %d Bytes)\n", AUDIO_CLIP_BYTESIZE);
+        hal_audio_capture_fini();
+        return false;
+    }
 
-        preProcess.SetAudioWindowIndex(audioDataSlider.Index());
-        preProcess.DoPreProcess(inferenceWindow, preProcess.GetAudioWindowSize());
+    uint32_t u32ClipByteSize = 0;
+    while (1)
+    {
+        /* Creating a sliding window through the whole audio clip. */
+        u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
+        //memset(&pu8AudioClipFrameBuf[0], 0, u32ClipByteSize);
+        //u32ClipByteSize = hal_audio_transcode_pcm16to8(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
 
-        info("Inference %zu/%zu\n",
-             audioDataSlider.Index() + 1,
-             audioDataSlider.TotalStrides() + 1);
+        /* Creating a sliding window through the whole audio clip. */
+        auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
+                               u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
+                               preProcess.GetAudioWindowSize(),
+                               preProcess.GetAudioDataStride());
 
-        /* Run inference over this audio clip sliding window */
-        if (!RunInference(model, profiler))
+        /* Result is an averaged sum over inferences. */
+        float result = 0;
+        info("CS: %d, WS:%d, DS:%d, TS:%d\n",
+             u32ClipByteSize / MODEL_SAMPLE_BYTE,
+             preProcess.GetAudioWindowSize(),
+             preProcess.GetAudioDataStride(),
+             audioDataSlider.TotalStrides());
+
+        /* Start sliding through audio clip. */
+        while (audioDataSlider.HasNext())
         {
-            return false;
-        }
+            const int16_t *inferenceWindow = audioDataSlider.Next();
 
-        postProcess.DoPostProcess();
-        result += 0 - postProcess.GetOutputValue(0);
+            preProcess.SetAudioWindowIndex(audioDataSlider.Index());
+            preProcess.DoPreProcess(inferenceWindow, preProcess.GetAudioWindowSize());
+
+            info("Inference %zu/%zu\n",
+                 audioDataSlider.Index() + 1,
+                 audioDataSlider.TotalStrides() + 1);
+
+            /* Run inference over this audio clip sliding window */
+            if (!RunInference(model, profiler))
+            {
+                break;
+            }
+
+            postProcess.DoPostProcess();
+            result += 0 - postProcess.GetOutputValue(0);
 
 #if VERIFY_TEST_OUTPUT
-        DumpTensor(outputTensor);
+            DumpTensor(outputTensor);
 #endif        /* VERIFY_TEST_OUTPUT */
+        }
 
-    } /* while (audioDataSlider.HasNext()) */
+        /* Use average over whole clip as final score. */
+        result /= (audioDataSlider.TotalStrides() + 1);
 
-    /* Use average over whole clip as final score. */
-    result /= (audioDataSlider.TotalStrides() + 1);
+        ctx.Set<float>("result", result);
+        if (!PresentInferenceResult(result, scoreThreshold))
+        {
+            break;
+        }
 
-    ctx.Set<float>("result", result);
-    if (!PresentInferenceResult(result, scoreThreshold))
-    {
-        return false;
+        // profiler.PrintProfilingResult();
     }
 
-    // profiler.PrintProfilingResult();
+    hal_memheap_helper_free(evAREANA_AT_SRAM, pu8AudioClipFrameBuf);
 
-    return true;
+    return false;
 }
 
 static bool PresentInferenceResult(float result, float threshold)

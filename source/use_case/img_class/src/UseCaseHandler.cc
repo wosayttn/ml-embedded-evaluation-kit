@@ -216,67 +216,83 @@ bool ClassifyImageHandlerLive(ApplicationContext &ctx)
     ImgClassPreProcess preProcess = ImgClassPreProcess(inputTensor, model.IsDataSigned());
 
     std::vector<ClassificationResult> results;
-    ImgClassPostProcess postProcess =
-        ImgClassPostProcess(outputTensor,
-                            ctx.Get<ImgClassClassifier &>("classifier"),
-                            ctx.Get<std::vector<std::string>&>("labels"),
-                            results);
+    ImgClassPostProcess postProcess = ImgClassPostProcess(outputTensor,
+                                      ctx.Get<ImgClassClassifier &>("classifier"),
+                                      ctx.Get<std::vector<std::string>&>("labels"),
+                                      results);
 
-    hal_camera_sync();
-    const uint8_t *PktImage = hal_camera_get_frame(0);
-    if (PktImage == NULL)
+    ccap_view_info sViewInfo_Packet;
+
+    sViewInfo_Packet.u32Width    = nRows;
+    sViewInfo_Packet.u32Height   = nCols;
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB888_U8;
+
+    /* Initialise CAMERA - use packet/planar pipes */
+    if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
     {
-        printf_err("Sync pkt frame failed.");
+        printf_err("hal_camera_init failed\n");
         return false;
     }
 
-    /* Display this image on the LCD. */
-    hal_lcd_display_image(PktImage,
-                          nCols,
-                          nRows,
-                          nChannels,
-                          dataPsnImgStartX,
-                          dataPsnImgStartY,
-                          dataPsnImgDownscaleFactor);
-
-    const size_t imgSz = nCols * nRows;
-
-    /* Run the pre-processing, inference and post-processing. */
-    if (!preProcess.DoPreProcess(PktImage, imgSz))
+    while (1)
     {
-        printf_err("Pre-processing failed.");
-        return false;
-    }
+        hal_camera_sync();
+        const uint8_t *PktImage = hal_camera_get_frame(0);
+        if (PktImage == NULL)
+        {
+            printf_err("Sync pkt frame failed.");
+            break;
+        }
 
-    hal_camera_oneshot();
+        /* Display this image on the LCD. */
+        hal_lcd_display_image(PktImage,
+                              nCols,
+                              nRows,
+                              nChannels,
+                              dataPsnImgStartX,
+                              dataPsnImgStartY,
+                              dataPsnImgDownscaleFactor);
 
-    if (!RunInference(model, profiler))
-    {
-        printf_err("Inference failed.");
-        return false;
-    }
+        const size_t imgSz = nCols * nRows;
 
-    if (!postProcess.DoPostProcess())
-    {
-        printf_err("Post-processing failed.");
-        return false;
-    }
+        /* Run the pre-processing, inference and post-processing. */
+        if (!preProcess.DoPreProcess(PktImage, imgSz))
+        {
+            printf_err("Pre-processing failed.");
+            break;
+        }
 
-    /* Add results to context for access outside handler. */
-    ctx.Set<std::vector<ClassificationResult>>("results", results);
+        hal_camera_oneshot();
+
+        if (!RunInference(model, profiler))
+        {
+            printf_err("Inference failed.");
+            break;
+        }
+
+        if (!postProcess.DoPostProcess())
+        {
+            printf_err("Post-processing failed.");
+            break;
+        }
+
+        /* Add results to context for access outside handler. */
+        ctx.Set<std::vector<ClassificationResult>>("results", results);
 
 #if VERIFY_TEST_OUTPUT
-    arm::app::DumpTensor(outputTensor);
+        arm::app::DumpTensor(outputTensor);
 #endif /* VERIFY_TEST_OUTPUT */
 
-    if (!PresentInferenceResult(results))
-    {
-        return false;
+        if (!PresentInferenceResult(results))
+        {
+            break;
+        }
+
+        //profiler.PrintProfilingResult();
     }
 
-    //profiler.PrintProfilingResult();
-
-    return true;
+    return false;
 }
 
 } /* namespace app */

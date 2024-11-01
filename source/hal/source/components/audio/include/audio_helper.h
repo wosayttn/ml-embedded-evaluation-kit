@@ -36,6 +36,8 @@ void audio_capture_fini(void);
  * @brief       get the audio frame buffer from audio device.
  * @return      Available bytes.
  **/
-uint32_t audio_capture_get_frame(uint8_t **ppu8BufAddr);
+uint32_t audio_capture_get_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen);
+
+uint32_t audio_transcode_pcm16to8(uint8_t *pu8BufAddr, uint32_t u32BufLen);
 
 #endif /* AUDIO_HELPER_H */

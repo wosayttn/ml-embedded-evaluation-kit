@@ -115,65 +115,13 @@ void main_loop()
         caseContext.Set<arm::app::Profiler &>("profiler", profiler);
         caseContext.Set<arm::app::Model &>("model", model);
 
+#if defined(MLEVK_UC_LIVE_DEMO)
+        ObjectDetectionHandlerLive(caseContext);
+#else
+        caseContext.Set<uint32_t>("imgIndex", 0);
+
         /* Loop. */
         bool executionSuccessful = true;
-
-        TfLiteIntArray *inputShape = model.GetInputShape(0);
-        const int inputImgCols = inputShape->data[arm::app::YoloFastestModel::ms_inputColsIdx];
-        const int inputImgRows = inputShape->data[arm::app::YoloFastestModel::ms_inputRowsIdx];
-
-#if defined(MLEVK_UC_LIVE_DEMO)
-
-#if 1
-
-        ccap_view_info sViewInfo_Packet;
-
-        /* TEST CHIP use packet-y only */
-        sViewInfo_Packet.u32Width    = inputImgCols;
-        sViewInfo_Packet.u32Height   = inputImgRows;
-        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
-
-        /* Initialise CAMERA - use packet pipe only */
-        if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
-        {
-            printf_err("hal_camera_init failed\n");
-            goto exit_main_loop;
-        }
-
-#else
-
-        ccap_view_info sViewInfo_Packet;
-        ccap_view_info sViewInfo_Planar;
-
-        sViewInfo_Packet.u32Width    = inputImgCols;
-        sViewInfo_Packet.u32Height   = inputImgRows;
-        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
-
-        sViewInfo_Planar.u32Width    = inputImgCols;
-        sViewInfo_Planar.u32Height   = inputImgRows;
-        sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
-
-        /* Initialise CAMERA - use packet/planar pipes */
-        if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
-        {
-            printf_err("hal_camera_init failed\n");
-            goto exit_main_loop;
-        }
-
-#endif
-
-        do
-        {
-            executionSuccessful = ObjectDetectionHandlerLive(caseContext);
-        }
-        while (executionSuccessful);
-
-#else
-
-        caseContext.Set<uint32_t>("imgIndex", 0);
 
         /* Loop. */
         constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;

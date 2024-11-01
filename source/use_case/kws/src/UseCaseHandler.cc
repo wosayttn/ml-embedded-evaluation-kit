@@ -233,8 +233,7 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
     /* Get input shape for feature extraction. */
     TfLiteIntArray *inputShape     = model.GetInputShape(0);
     const uint32_t numMfccFeatures = inputShape->data[MicroNetKwsModel::ms_inputColsIdx];
-    const uint32_t numMfccFrames =
-        inputShape->data[arm::app::MicroNetKwsModel::ms_inputRowsIdx];
+    const uint32_t numMfccFrames   = inputShape->data[arm::app::MicroNetKwsModel::ms_inputRowsIdx];
 
     /* We expect to be sampling 1 second worth of data at a time.
      * NOTE: This is only used for time stamp calculation. */
@@ -250,74 +249,121 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
                                  ctx.Get<std::vector<std::string>&>("labels"),
                                  singleInfResult);
 
-    /* Creating a sliding window through the whole audio clip. */
-    int16_t *pu16ClipBufAddr = NULL;
-    uint32_t u32ClipSize = hal_audio_capture_get_frame((uint8_t **)&pu16ClipBufAddr);
-    if (!pu16ClipBufAddr || (u32ClipSize <= 0))
+#define MODEL_SAMPLE_RATE        16000
+#define MODEL_SAMPLE_BIT         16
+#define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
+#define MODEL_CHANNEL            1
+#define AUDIO_CLIP_SECOND        1
+#define AUDIO_CLIP_BYTESIZE      (MODEL_SAMPLE_RATE * MODEL_SAMPLE_BYTE * MODEL_CHANNEL * AUDIO_CLIP_SECOND)
+
+#define AUDIO_BATCH             1
+
+    /* Set 16K Sample rate, 16-bit, mono for this model. */
+    if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
     {
-        printf_err("failed to get clip frame buffer\n");
+        printf_err("Failed to initialise audio capture device\n");
         return false;
     }
 
-    auto audioDataSlider = audio::SlidingWindow<const int16_t>(pu16ClipBufAddr,
-                           u32ClipSize/sizeof(int16_t),
-                           preProcess.m_audioDataWindowSize,
-                           preProcess.m_audioDataStride);
-
-    /* Declare a container to hold results from across the whole audio clip. */
-    std::vector<kws::KwsResult> finalResults;
-
-    /* Start sliding through audio clip. */
-    while (audioDataSlider.HasNext())
+    uint8_t *pu8AudioClipFrameBuf = NULL;
+    pu8AudioClipFrameBuf = (uint8_t *)hal_memheap_helper_allocate(
+                               evAREANA_AT_SRAM,
+                               AUDIO_CLIP_BYTESIZE);
+    if (pu8AudioClipFrameBuf == NULL)
     {
-        const int16_t *inferenceWindow = audioDataSlider.Next();
+        printf_err("Failed to allocate audio clip memory.( %d Bytes)\n", AUDIO_CLIP_BYTESIZE);
+        hal_audio_capture_fini();
+        return false;
+    }
 
-        //info("Inference %zu/%zu\n",
-        //     audioDataSlider.Index() + 1,
-        //     audioDataSlider.TotalStrides() + 1);
+    uint32_t u32ClipByteSize = 0;
+    while (1)
+    {
+        /* Creating a sliding window through the whole audio clip. */
+#if (AUDIO_BATCH==1)
+        u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
+#else
+        uint32_t u32StrideByteSize = preProcess.m_audioDataStride * MODEL_SAMPLE_BYTE;
 
-        /* Run the pre-processing, inference and post-processing. */
-        if (!preProcess.DoPreProcess(inferenceWindow, audioDataSlider.Index()))
+        if (u32ClipByteSize > 0)
         {
-            printf_err("Pre-processing failed.");
-            return false;
+            memcpy(pu8AudioClipFrameBuf, &pu8AudioClipFrameBuf[preProcess.m_audioDataStride], u32StrideByteSize);
+            u32ClipByteSize -= u32StrideByteSize;
         }
-
-        if (!RunInference(model, profiler))
+        do
         {
-            printf_err("Inference failed.");
-            return false;
+            u32ClipByteSize += hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[u32ClipByteSize], u32StrideByteSize);
         }
+        while (u32ClipByteSize < (preProcess.m_audioDataWindowSize * MODEL_SAMPLE_BYTE));
+#endif
 
-        if (!postProcess.DoPostProcess())
+        auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
+                               u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
+                               preProcess.m_audioDataWindowSize,
+                               preProcess.m_audioDataStride);
+
+        /* Declare a container to hold results from across the whole audio clip. */
+        std::vector<kws::KwsResult> finalResults;
+
+        /* Start sliding through audio clip. */
+        while (audioDataSlider.HasNext())
         {
-            printf_err("Post-processing failed.");
-            return false;
-        }
+            const int16_t *inferenceWindow = audioDataSlider.Next();
 
-        /* Add results from this window to our final results vector. */
-        finalResults.emplace_back(kws::KwsResult(
-                                      singleInfResult,
-                                      audioDataSlider.Index() * secondsPerSample * preProcess.m_audioDataStride,
-                                      audioDataSlider.Index(),
-                                      scoreThreshold));
+#if 0
+            info("Inference %zu/%zu\n",
+                 audioDataSlider.Index() + 1,
+                 audioDataSlider.TotalStrides() + 1);
+            info("u32ClipByteSize: %d\n", u32ClipByteSize);
+            info("audioDataWindowSize: %d\n", preProcess.m_audioDataWindowSize);
+            info("audioDataStride: %d\n", preProcess.m_audioDataStride);
+#endif
+
+            /* Run the pre-processing, inference and post-processing. */
+            if (!preProcess.DoPreProcess(inferenceWindow, audioDataSlider.Index()))
+            {
+                printf_err("Pre-processing failed.");
+                break;
+            }
+
+            if (!RunInference(model, profiler))
+            {
+                printf_err("Inference failed.");
+                break;
+            }
+
+            if (!postProcess.DoPostProcess())
+            {
+                printf_err("Post-processing failed.");
+                break;
+            }
+
+            /* Add results from this window to our final results vector. */
+            finalResults.emplace_back(kws::KwsResult(
+                                          singleInfResult,
+                                          audioDataSlider.Index() * secondsPerSample * preProcess.m_audioDataStride,
+                                          audioDataSlider.Index(),
+                                          scoreThreshold));
 
 #if VERIFY_TEST_OUTPUT
-        DumpTensor(outputTensor);
+            DumpTensor(outputTensor);
 #endif        /* VERIFY_TEST_OUTPUT */
 
-    } /* while (audioDataSlider.HasNext()) */
+        } /* while (audioDataSlider.HasNext()) */
 
-    ctx.Set<std::vector<kws::KwsResult>>("results", finalResults);
+        ctx.Set<std::vector<kws::KwsResult>>("results", finalResults);
 
-    if (!PresentInferenceResult(finalResults))
-    {
-        return false;
+        if (!PresentInferenceResult(finalResults))
+        {
+            break;
+        }
+
+        // profiler.PrintProfilingResult();
     }
 
-    // profiler.PrintProfilingResult();
+    hal_memheap_helper_free(evAREANA_AT_SRAM, pu8AudioClipFrameBuf);
 
-    return true;
+    return false;
 }
 
 static bool PresentInferenceResult(const std::vector<kws::KwsResult> &results)
@@ -328,10 +374,8 @@ static bool PresentInferenceResult(const std::vector<kws::KwsResult> &results)
 
     hal_lcd_set_text_color(COLOR_GREEN);
 
-#if !defined(MLEVK_UC_DYNAMIC_LOAD)
     info("Final results:\n");
     info("Total number of inferences: %zu\n", results.size());
-#endif
 
     /* Display each result */
     uint32_t rowIdx1 = dataPsnTxtStartY1 + 2 * dataPsnTxtYIncr;
@@ -352,11 +396,9 @@ static bool PresentInferenceResult(const std::vector<kws::KwsResult> &results)
                                 std::to_string(static_cast<int>(score * 100)) +
                                 std::string{"%)"};
 
-        hal_lcd_display_text(
-            resultStr.c_str(), resultStr.size(), dataPsnTxtStartX1, rowIdx1, false);
+        hal_lcd_display_text(resultStr.c_str(), resultStr.size(), dataPsnTxtStartX1, rowIdx1, false);
         rowIdx1 += dataPsnTxtYIncr;
 
-#if !defined(MLEVK_UC_DYNAMIC_LOAD)
         if (result.m_resultVec.empty())
         {
             info("For timestamp: %f (inference #: %" PRIu32 "); label: %s; threshold: %f\n",
@@ -369,8 +411,7 @@ static bool PresentInferenceResult(const std::vector<kws::KwsResult> &results)
         {
             for (uint32_t j = 0; j < result.m_resultVec.size(); ++j)
             {
-                info("For timestamp: %f (inference #: %" PRIu32
-                     "); label: %s, score: %f; threshold: %f\n",
+                info("For timestamp: %f (inference #: %" PRIu32 "); label: %s, score: %f; threshold: %f\n",
                      result.m_timeStamp,
                      result.m_inferenceNumber,
                      result.m_resultVec[j].m_label.c_str(),
@@ -378,7 +419,7 @@ static bool PresentInferenceResult(const std::vector<kws::KwsResult> &results)
                      result.m_threshold);
             }
         }
-#endif
+
     }
 
     return true;

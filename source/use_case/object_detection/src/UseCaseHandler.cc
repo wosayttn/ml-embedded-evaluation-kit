@@ -250,104 +250,137 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         inputImgCols,
         object_detection::originalImageSize,
         object_detection::anchor1,
-        object_detection::anchor2};
+        object_detection::anchor2
+    };
+
     DetectorPostProcess postProcess =
         DetectorPostProcess(outputTensor0, outputTensor1, results, postProcessParams);
 
-    /* Ensure there are no results leftover from previous inference when running all. */
-    results.clear();
+#define TC8263        1
+#if (TC8263==1)
+    ccap_view_info sViewInfo_Packet;
 
-    /* Strings for presentation/logging. */
-    //std::string str_inf{"Running inference... "};
-    hal_camera_sync();
-    const uint8_t *PktImage = hal_camera_get_frame(0);
-    if (PktImage == NULL)
+    /* TEST CHIP use packet-y only */
+    sViewInfo_Packet.u32Width    = inputImgCols;
+    sViewInfo_Packet.u32Height   = inputImgRows;
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
+
+    /* Initialise CAMERA - use packet pipe only */
+    if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
     {
-        printf_err("Sync pkt frame failed.");
+        printf_err("hal_camera_init failed\n");
         return false;
     }
+#else
+    ccap_view_info sViewInfo_Packet;
+    ccap_view_info sViewInfo_Planar;
 
-#if 0
-    const uint8_t *PlaImage = hal_camera_sync_frame(1);
-    if (PlaImage == NULL)
+    sViewInfo_Packet.u32Width    = inputImgCols;
+    sViewInfo_Packet.u32Height   = inputImgRows;
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+
+    sViewInfo_Planar.u32Width    = inputImgCols;
+    sViewInfo_Planar.u32Height   = inputImgRows;
+    sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
+
+    /* Initialise CAMERA - use packet/planar pipes */
+    if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
     {
-        printf_err("Sync pla frame failed.");
-        return false;
+        printf_err("hal_camera_init failed\n");
+        goto exit_main_loop;
     }
 #endif
 
-    //printf_err("%d %d.\n", inputImgRows, inputImgCols);
-    const size_t copySz = inputImgRows * inputImgCols;
-
-    /* Run the pre-processing, inference and post-processing. */
-    if (!preProcess.DoPreProcess(PktImage, copySz))
+    while (1)
     {
-        printf_err("Pre-processing failed.");
-        return false;
-    }
+        /* Ensure there are no results leftover from previous inference when running all. */
+        results.clear();
 
-    hal_camera_oneshot();
+        hal_camera_sync();
+        const uint8_t *PktImage = hal_camera_get_frame(0);
+        if (PktImage == NULL)
+        {
+            printf_err("Sync pkt frame failed.");
+            break;
+        }
 
-#if 0
-    /* Display planner image on the LCD. */
-    hal_lcd_display_image(
-        PlaImage,
-        inputImgCols,
-        inputImgRows,
-        1,
-        dataPsnImgStartX,
-        dataPsnImgStartY,
-        dataPsnImgDownscaleFactor);
+#if (TC8263==1)
+#else
+        const uint8_t *PlaImage = hal_camera_sync_frame(1);
+        if (PlaImage == NULL)
+        {
+            printf_err("Sync pla frame failed.");
+            break;
+        }
 #endif
 
-    /* Display planner image on the LCD. */
-    hal_lcd_display_image(
-        PktImage,
-        inputImgCols,
-        inputImgRows,
-        1, //2,
-        dataPsnImgStartX, //(480 / 2) + dataPsnImgStartX,
-        dataPsnImgStartY,
-        dataPsnImgDownscaleFactor);
+        const size_t copySz = inputImgRows * inputImgCols;
 
-    /* Display message on the LCD - inference running. */
-    //hal_lcd_display_text(
-    //    str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, false);
+        /* Run the pre-processing, inference and post-processing. */
+        if (!preProcess.DoPreProcess(PktImage, copySz))
+        {
+            printf_err("Pre-processing failed.");
+            break;
+        }
 
-    if (!RunInference(model, profiler))
-    {
-        printf_err("Inference failed.");
-        return false;
-    }
+        hal_camera_oneshot();
 
-    if (!postProcess.DoPostProcess())
-    {
-        printf_err("Post-processing failed.");
-        return false;
-    }
+#if (TC8263==1)
+        /* Display packet image on the LCD. Y-only */
+        hal_lcd_display_image(
+            PktImage,
+            inputImgCols,
+            inputImgRows,
+            1,
+            dataPsnImgStartX, //(480 / 2) + dataPsnImgStartX,
+            dataPsnImgStartY,
+            dataPsnImgDownscaleFactor);
+#else
+        /* Display planner image on the LCD. YUV420P, Only-Y */
+        hal_lcd_display_image(
+            PlaImage,
+            inputImgCols,
+            inputImgRows,
+            1,
+            dataPsnImgStartX,
+            dataPsnImgStartY,
+            dataPsnImgDownscaleFactor);
+#endif
 
-    /* Erase. */
-    //str_inf = std::string(str_inf.size(), ' ');
-    //hal_lcd_display_text(
-    //    str_inf.c_str(), str_inf.size(), dataPsnTxtInfStartX, dataPsnTxtInfStartY, false);
+        if (!RunInference(model, profiler))
+        {
+            printf_err("Inference failed.");
+            break;
+        }
 
-    /* Draw boxes. */
-    DrawDetectionBoxes(
-        results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
+        if (!postProcess.DoPostProcess())
+        {
+            printf_err("Post-processing failed.");
+            break;
+        }
+
+        /* Draw boxes. */
+        DrawDetectionBoxes(
+            results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
 
 #if VERIFY_TEST_OUTPUT
-    DumpTensor(outputTensor0);
-    DumpTensor(outputTensor1);
+        DumpTensor(outputTensor0);
+        DumpTensor(outputTensor1);
 #endif /* VERIFY_TEST_OUTPUT */
 
-    //if (!PresentInferenceResult(results))
-    //{
-    //    return false;
-    //}
+        //if (!PresentInferenceResult(results))
+        //{
+        //    break;
+        //}
 
-    //profiler.PrintProfilingResult();
+        //profiler.PrintProfilingResult();
 
-    return true;
+    } // while(1)
+
+    return false;
 }
 
 static bool

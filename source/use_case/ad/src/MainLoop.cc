@@ -114,32 +114,18 @@ void main_loop()
         arm::app::Profiler profiler{"ad"};
         caseContext.Set<arm::app::Profiler &>("profiler", profiler);
         caseContext.Set<arm::app::Model &>("model", model);
-        caseContext.Set<uint32_t>("clipIndex", 0);
         caseContext.Set<uint32_t>("frameLength", arm::app::ad::g_FrameLength);
         caseContext.Set<uint32_t>("frameStride", arm::app::ad::g_FrameStride);
         caseContext.Set<float>("scoreThreshold", arm::app::ad::g_ScoreThreshold);
         caseContext.Set<float>("trainingMean", arm::app::ad::g_TrainingMean);
 
-        /* Main program loop. */
-        bool executionSuccessful = true;
-
 #if defined(MLEVK_UC_LIVE_DEMO)
-
-        /* Set 8K Sample rate, 16-bit, mono for this model. */
-        if (hal_audio_capture_init(8000, 16, 1) < 0)
-        {
-            printf_err("Failed to initialise audio capture device\n");
-            goto exit_main_loop;
-        }
-
-        do
-        {
-            executionSuccessful = ClassifyVibrationHandlerLive(caseContext);
-        }
-        while (executionSuccessful);
-
+        ClassifyVibrationHandlerLive(caseContext);
 #else
         constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+        caseContext.Set<uint32_t>("clipIndex", 0);
+        /* Main program loop. */
+        bool executionSuccessful = true;
 
         /* Loop. */
         do

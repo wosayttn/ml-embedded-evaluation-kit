@@ -141,37 +141,16 @@ void main_loop()
         caseContext.Set<arm::app::KwsClassifier &>("classifier", classifier);
 
         std::vector <std::string> labels;
-#if defined(MLEVK_UC_DYNAMIC_LOAD)
-        LoadLabelsVector(labels, pvLabelBufAddr, u32LabelBufLen);
-#else
-        GetLabelsVector(labels);
-#endif
         caseContext.Set<const std::vector <std::string>&>("labels", labels);
 
-        /* Loop. */
-        bool executionSuccessful = true;
-
 #if defined(MLEVK_UC_LIVE_DEMO)
-
-        /* Set 16K Sample rate, 16-bit, mono for this model. */
-        if (hal_audio_capture_init(16000, 16, 1) < 0)
-        {
-            printf_err("Failed to initialise audio capture device\n");
-            goto exit_main_loop;
-        }
-
-        do
-        {
-            executionSuccessful = ClassifyAudioHandlerLive(caseContext);
-        }
-        while (executionSuccessful);
-
+        LoadLabelsVector(labels, pvLabelBufAddr, u32LabelBufLen);
+        ClassifyAudioHandlerLive(caseContext);
 #else
-
+        GetLabelsVector(labels);
         caseContext.Set<uint32_t>("clipIndex", 0);
-
-        /* Loop. */
         constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+        bool executionSuccessful = true;
 
         /* Loop. */
         do

@@ -123,40 +123,11 @@ void main_loop()
 #endif
         caseContext.Set<const std::vector <std::string>&>("labels", labels);
 
-        /* Loop. */
-        bool executionSuccessful = true;
-
-        TfLiteIntArray *inputShape = model.GetInputShape(0);
-        const int inputImgCols = inputShape->data[arm::app::MobileNetModel::ms_inputColsIdx];
-        const int inputImgRows = inputShape->data[arm::app::MobileNetModel::ms_inputRowsIdx];
-
 #if defined(MLEVK_UC_LIVE_DEMO)
-
-        ccap_view_info sViewInfo_Packet;
-
-        sViewInfo_Packet.u32Width    = inputImgCols;
-        sViewInfo_Packet.u32Height   = inputImgRows;
-        sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-        sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB888_U8;
-
-        /* Initialise CAMERA - use packet/planar pipes */
-        if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
-        {
-            printf_err("hal_camera_init failed\n");
-            goto exit_main_loop;
-        }
-
-        do
-        {
-            executionSuccessful = ClassifyImageHandlerLive(caseContext);
-        }
-        while (executionSuccessful);
-
+        ClassifyImageHandlerLive(caseContext);
 #else
-
+        bool executionSuccessful = true;
         caseContext.Set<uint32_t>("imgIndex", 0);
-
-        /* Loop. */
         constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
 
         /* Loop. */

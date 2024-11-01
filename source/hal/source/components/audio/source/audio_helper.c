@@ -31,8 +31,6 @@
 #endif
 
 static rt_device_t s_psAudioDev = RT_NULL;
-static rt_uint8_t *s_psFrameBuf = RT_NULL;
-static rt_uint32_t s_u32ClipSize = 0;
 
 void audio_capture_fini(void)
 {
@@ -40,13 +38,6 @@ void audio_capture_fini(void)
     {
         rt_device_close(s_psAudioDev);
         s_psAudioDev = RT_NULL;
-    }
-
-    if (s_psFrameBuf)
-    {
-        rt_free(s_psFrameBuf);
-        s_psFrameBuf = RT_NULL;
-        s_u32ClipSize = 0;
     }
 }
 
@@ -66,18 +57,6 @@ int audio_capture_init(uint32_t u32SmplRate, uint32_t u32SmplBit, uint32_t u32Ch
         LOG_E("device %s not found", MLEVK_UC_AUDIO_CAPTURE_DEVICE);
         goto exit_audio_capture_init;
     }
-
-    /* Calculate a clip frame size. */
-    s_u32ClipSize = u32SmplRate * (u32SmplBit / 8) * u32ChnNum;
-
-    /* malloc internal buffer */
-    s_psFrameBuf = rt_malloc(s_u32ClipSize);
-    if (s_psFrameBuf == RT_NULL)
-    {
-        LOG_E("malloc internal buffer for recorder failed");
-        goto exit_audio_capture_init;
-    }
-    rt_memset(s_psFrameBuf, 0, s_u32ClipSize);
 
     /* open micphone device */
     result = rt_device_open(s_psAudioDev, RT_DEVICE_OFLAG_RDONLY);
@@ -106,41 +85,49 @@ exit_audio_capture_init:
 
     s_psAudioDev = RT_NULL;
 
-    if (s_psFrameBuf)
-    {
-        rt_free(s_psFrameBuf);
-        s_psFrameBuf = RT_NULL;
-    }
-
-    s_u32ClipSize = 0;
-
     return -1;
 }
 
-uint32_t audio_capture_get_frame(uint8_t **ppu8BufAddr)
+uint32_t audio_capture_get_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen)
 {
     /* Read raw data from capture audio device. */
-    if (s_psAudioDev && s_psFrameBuf)
+    if (s_psAudioDev && pu8BufAddr && (u32BufLen > 0))
     {
         uint32_t size = 0;
         uint32_t u32Off = 0;
-        uint32_t u32Remain = s_u32ClipSize;
+        uint32_t u32Remain = u32BufLen;
 
         while (u32Remain > 0)
         {
-            size = rt_device_read(s_psAudioDev, 0, s_psFrameBuf + u32Off, u32Remain);
+            size = rt_device_read(s_psAudioDev, 0, pu8BufAddr + u32Off, (u32Remain > 4096) ? 4096 : u32Remain);
             u32Remain -= size;
             u32Off += size;
 
-            LOG_I("(%d/%d)", u32Remain, s_u32ClipSize);
+            //LOG_I("(%d/%d)", u32Remain, u32BufLen);
             if (u32Remain)
                 rt_thread_mdelay(100);
         }
 
-        *ppu8BufAddr = s_psFrameBuf;
-
-        return s_u32ClipSize;
+        return u32BufLen;
     }
 
     return 0;
+}
+
+uint32_t audio_transcode_pcm16to8(uint8_t *pu8BufAddr, uint32_t u32BufLen)
+{
+    int len = u32BufLen / sizeof(uint16_t);
+    uint16_t *pu16 = (uint16_t *)pu8BufAddr;
+    uint8_t *pu8 = pu8BufAddr;
+
+    while (len > 0)
+    {
+        *pu8 = (uint8_t)(*pu16 >> 8);
+
+        len--;
+        pu8++;
+        pu16++;
+    }
+
+    return u32BufLen / sizeof(uint16_t);
 }
