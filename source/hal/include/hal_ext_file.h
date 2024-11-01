@@ -28,6 +28,7 @@
 
 #define hal_ext_file_list(x)                    ext_file_list(x)
 #define hal_ext_file_import(x, y, z)            ext_file_import(x, y, z)
+#define hal_ext_file_export(x, y, z)            ext_file_export(x, y, z)
 #define hal_ext_file_checksum(x,y)              ext_file_checksum(x,y)
 #define hal_ext_file_release(x)                 ext_file_release(x)
 

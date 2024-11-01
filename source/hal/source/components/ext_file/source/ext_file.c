@@ -165,7 +165,7 @@ int ext_file_import(const char *pcPath, void **ppvBufAddr, uint32_t *pu32BufSize
         goto exit_ext_file_import;
     }
 
-    LOG_I("Loaded file @%08x, %d Bytes, CRC32: %08X",
+    LOG_I("Imported file @%08x, %d Bytes, CRC32: %08X",
           pvBufAddr,
           sb.st_size,
           ext_file_checksum(pvBufAddr, sb.st_size));
@@ -193,6 +193,43 @@ void ext_file_release(void *pvBufAddr)
 {
     if (pvBufAddr)
         memheap_helper_free(evAREANA_AT_HYPERRAM, pvBufAddr);
+}
+
+int ext_file_export(const char *pcPath, void *pvBufAddr, uint32_t u32BufSize)
+{
+    int ret = -1, fd = -1;
+
+    if (!pcPath || !pvBufAddr || !u32BufSize)
+        goto exit_ext_file_export;
+
+    if ((fd = open(pcPath, O_WRONLY | O_CREAT, 0)) < 0)
+    {
+        goto exit_ext_file_export;
+    }
+    else if (write(fd, pvBufAddr, u32BufSize) != u32BufSize)
+    {
+        goto exit_ext_file_export;
+    }
+
+    LOG_I("Exported file from @%08x(%d Bytes) to %s, CRC32: %08X",
+          pvBufAddr,
+          u32BufSize,
+          pcPath,
+          ext_file_checksum(pvBufAddr, u32BufSize));
+
+    ret = 0;
+
+exit_ext_file_export:
+
+    if (ret < 0)
+    {
+        LOG_E("Failed to export file to %s", pcPath);
+    }
+
+    if (fd >= 0)
+        close(fd);
+
+    return ret;
 }
 
 #endif

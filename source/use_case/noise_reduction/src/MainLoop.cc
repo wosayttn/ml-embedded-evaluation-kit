@@ -21,13 +21,16 @@
 #include "log_macros.h"             /* Logging functions */
 #include "BufAttributes.hpp"        /* Buffer attributes to be applied */
 
-namespace arm {
-namespace app {
-    static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
-    namespace rnn {
-        extern uint8_t* GetModelPointer();
-        extern size_t GetModelLen();
-    } /* namespace rnn */
+namespace arm
+{
+namespace app
+{
+static uint8_t tensorArena[ACTIVATION_BUF_SZ] ACTIVATION_BUF_ATTRIBUTE;
+namespace rnn
+{
+extern uint8_t *GetModelPointer();
+extern size_t GetModelLen();
+} /* namespace rnn */
 } /* namespace app */
 } /* namespace arm */
 
@@ -37,7 +40,8 @@ enum opcodes
     MENU_OPT_RUN_INF_CHOSEN,         /* Run on a user provided vector index. */
     MENU_OPT_RUN_INF_ALL,            /* Run inference on all. */
     MENU_OPT_SHOW_MODEL_INFO,        /* Show model info. */
-    MENU_OPT_LIST_AUDIO_CLIPS        /* List the current baked audio clip features. */
+    MENU_OPT_LIST_AUDIO_CLIPS,       /* List the current baked audio clip features. */
+    MENU_OPT_QUIT                    /* Quit the program. */
 };
 
 static void DisplayMenu()
@@ -49,14 +53,16 @@ static void DisplayMenu()
     printf("  %u. Run noise reduction on a WAV at chosen index\n", MENU_OPT_RUN_INF_CHOSEN);
     printf("  %u. Run noise reduction on all WAVs\n", MENU_OPT_RUN_INF_ALL);
     printf("  %u. Show NN model info\n", MENU_OPT_SHOW_MODEL_INFO);
-    printf("  %u. List audio clips\n\n", MENU_OPT_LIST_AUDIO_CLIPS);
+    printf("  %u. List audio clips\n", MENU_OPT_LIST_AUDIO_CLIPS);
+    printf("  %u. Quit\n\n", MENU_OPT_QUIT);
     printf("  Choice: ");
     fflush(stdout);
 }
 
-static bool SetAppCtxClipIdx(arm::app::ApplicationContext& ctx, uint32_t idx)
+static bool SetAppCtxClipIdx(arm::app::ApplicationContext &ctx, uint32_t idx)
 {
-    if (idx >= NUMBER_OF_FILES) {
+    if (idx >= NUMBER_OF_FILES)
+    {
         printf_err("Invalid idx %" PRIu32 " (expected less than %u)\n",
                    idx, NUMBER_OF_FILES);
         return false;
@@ -76,7 +82,8 @@ void main_loop()
     if (!model.Init(arm::app::tensorArena,
                     sizeof(arm::app::tensorArena),
                     arm::app::rnn::GetModelPointer(),
-                    arm::app::rnn::GetModelLen())) {
+                    arm::app::rnn::GetModelLen()))
+    {
         printf_err("Failed to initialise model\n");
         return;
     }
@@ -85,59 +92,78 @@ void main_loop()
     arm::app::ApplicationContext caseContext;
 
     arm::app::Profiler profiler{"noise_reduction"};
-    caseContext.Set<arm::app::Profiler&>("profiler", profiler);
+    caseContext.Set<arm::app::Profiler &>("profiler", profiler);
     caseContext.Set<uint32_t>("numInputFeatures", arm::app::rnn::g_NumInputFeatures);
     caseContext.Set<uint32_t>("frameLength", arm::app::rnn::g_FrameLength);
     caseContext.Set<uint32_t>("frameStride", arm::app::rnn::g_FrameStride);
-    caseContext.Set<arm::app::RNNoiseModel&>("model", model);
+    caseContext.Set<arm::app::RNNoiseModel &>("model", model);
     SetAppCtxClipIdx(caseContext, 0);
 
-#if defined(MEM_DUMP_BASE_ADDR)
-    /* For this use case, for valid targets, we dump contents
-     * of the output tensor to a certain location in memory to
-     * allow offline tools to pick this data up. */
+#define MEM_DUMP_LEN     0x00100000
+#if defined(MEM_DUMP_LEN)
     constexpr size_t memDumpMaxLen = MEM_DUMP_LEN;
-    uint8_t* memDumpBaseAddr = reinterpret_cast<uint8_t *>(MEM_DUMP_BASE_ADDR);
+    uint8_t *memDumpBaseAddr = (uint8_t *)hal_memheap_helper_allocate(
+                                   evAREANA_AT_HYPERRAM,
+                                   MEM_DUMP_LEN);
+    if (memDumpBaseAddr == NULL)
+    {
+        printf_err("Failed to allocate memory dumping.( %d Bytes)\n", MEM_DUMP_LEN);
+        return;
+    }
     size_t memDumpBytesWritten = 0;
     caseContext.Set<size_t>("MEM_DUMP_LEN", memDumpMaxLen);
-    caseContext.Set<uint8_t*>("MEM_DUMP_BASE_ADDR", memDumpBaseAddr);
-    caseContext.Set<size_t*>("MEM_DUMP_BYTE_WRITTEN", &memDumpBytesWritten);
-#endif /* defined(MEM_DUMP_BASE_ADDR) */
+    caseContext.Set<uint8_t *>("MEM_DUMP_BASE_ADDR", memDumpBaseAddr);
+    caseContext.Set<size_t *>("MEM_DUMP_BYTE_WRITTEN", &memDumpBytesWritten);
+    info("Allocated memory dumping @0x%08X.( %d Bytes)\n", memDumpBaseAddr, MEM_DUMP_LEN);
+#endif /* defined(MEM_DUMP_LEN) */
 
     /* Loop. */
-    do {
+    do
+    {
         int menuOption = MENU_OPT_RUN_INF_NEXT;
 
-        if (bUseMenu) {
+        if (bUseMenu)
+        {
             DisplayMenu();
             menuOption = arm::app::ReadUserInputAsInt();
             printf("\n");
         }
-        switch (menuOption) {
-            case MENU_OPT_RUN_INF_NEXT:
-                executionSuccessful = NoiseReductionHandler(caseContext, false);
-                break;
-            case MENU_OPT_RUN_INF_CHOSEN: {
-                printf("    Enter the audio clip IFM index [0, %d]: ", NUMBER_OF_FILES-1);
-                fflush(stdout);
-                auto clipIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
-                SetAppCtxClipIdx(caseContext, clipIndex);
-                executionSuccessful = NoiseReductionHandler(caseContext, false);
-                break;
-            }
-            case MENU_OPT_RUN_INF_ALL:
-                executionSuccessful = NoiseReductionHandler(caseContext, true);
-                break;
-            case MENU_OPT_SHOW_MODEL_INFO:
-                executionSuccessful = model.ShowModelInfoHandler();
-                break;
-            case MENU_OPT_LIST_AUDIO_CLIPS:
-                executionSuccessful = ListFilesHandler(caseContext);
-                break;
-            default:
-                printf("Incorrect choice, try again.");
-                break;
+        switch (menuOption)
+        {
+        case MENU_OPT_RUN_INF_NEXT:
+            executionSuccessful = NoiseReductionHandler(caseContext, false);
+            break;
+        case MENU_OPT_RUN_INF_CHOSEN:
+        {
+            printf("    Enter the audio clip IFM index [0, %d]: ", NUMBER_OF_FILES - 1);
+            fflush(stdout);
+            auto clipIndex = static_cast<uint32_t>(arm::app::ReadUserInputAsInt());
+            SetAppCtxClipIdx(caseContext, clipIndex);
+            executionSuccessful = NoiseReductionHandler(caseContext, false);
+            break;
         }
-    } while (executionSuccessful && bUseMenu);
+        case MENU_OPT_RUN_INF_ALL:
+            executionSuccessful = NoiseReductionHandler(caseContext, true);
+            break;
+        case MENU_OPT_SHOW_MODEL_INFO:
+            executionSuccessful = model.ShowModelInfoHandler();
+            break;
+        case MENU_OPT_LIST_AUDIO_CLIPS:
+            executionSuccessful = ListFilesHandler(caseContext);
+            break;
+        case MENU_OPT_QUIT:
+            executionSuccessful = false;
+            break;
+        default:
+            printf("Incorrect choice, try again.");
+            break;
+        }
+    }
+    while (executionSuccessful && bUseMenu);
+
+#if defined(MEM_DUMP_LEN)
+    hal_memheap_helper_free(evAREANA_AT_HYPERRAM, memDumpBaseAddr);
+#endif
+
     info("Main loop terminated.\n");
 }

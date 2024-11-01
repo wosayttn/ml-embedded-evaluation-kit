@@ -34,6 +34,12 @@ int ext_file_list(const char *pcDirPath);
 int ext_file_import(const char *pcPath, void **ppvBufAddr, uint32_t *pu32BufSize);
 
 /**
+ * @brief   export file to external storage.
+ * @return  0 on sucess, -1 if failure.
+ **/
+int ext_file_export(const char *pcPath, void *pvBufAddr, uint32_t u32BufSize);
+
+/**
  * @brief   get buffer crc32 checksum
  * @return  checksum value
  **/
