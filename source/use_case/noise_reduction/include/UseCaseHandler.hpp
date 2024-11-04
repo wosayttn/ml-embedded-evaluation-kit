@@ -32,6 +32,7 @@ namespace app
  * @return      True or false based on execution success
  **/
 bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll);
+bool NoiseReductionHandlerLive(ApplicationContext &ctx);
 
 /**
  * @brief           Dumps the output tensors to a memory address.

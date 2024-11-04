@@ -30,4 +30,8 @@
 #define hal_audio_capture_get_frame(x, y)       audio_capture_get_frame(x, y)
 #define hal_audio_transcode_pcm16to8(x, y)      audio_transcode_pcm16to8(x, y)
 
+#define hal_audio_playback_init(x, y, z)        audio_playback_init(x, y, z)
+#define hal_audio_playback_fini()               audio_playback_fini()
+#define hal_audio_playback_put_frame(x, y)      audio_playback_put_frame(x, y)
+
 #endif /* HAL_AUDIO_H */

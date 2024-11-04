@@ -25,18 +25,21 @@
  * @return  0 if successful, error code otherwise.
  **/
 int audio_capture_init(uint32_t u32SmplRate, uint32_t u32SmplBit, uint32_t u32ChnNum);
+int audio_playback_init(uint32_t u32SmplRate, uint32_t u32SmplBit, uint32_t u32ChnNum);
 
 /**
  * @brief   Finalize the audio
  * @return  0 if successful, error code otherwise.
  **/
 void audio_capture_fini(void);
+void audio_playback_fini(void);
 
 /**
  * @brief       get the audio frame buffer from audio device.
  * @return      Available bytes.
  **/
 uint32_t audio_capture_get_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen);
+uint32_t audio_playback_put_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen);
 
 uint32_t audio_transcode_pcm16to8(uint8_t *pu8BufAddr, uint32_t u32BufLen);
 

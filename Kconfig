@@ -68,6 +68,10 @@ menu "ml-embedded-evaluation-kit"
             string "Specific audio device for recording"
             default "dmic0"
 
+        config MLEVK_UC_AUDIO_PLAYBACK_DEVICE
+            string "Specific audio device for playback"
+            default "sound0"
+
     endif
 
 endmenu

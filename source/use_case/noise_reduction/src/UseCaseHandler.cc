@@ -31,6 +31,7 @@ namespace arm
 {
 namespace app
 {
+bool bDoDenoise = true;
 
 /**
  * @brief            Helper function to increment current audio clip features index.
@@ -56,6 +57,8 @@ bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll)
         memDumpBaseAddr      = ctx.Get<uint8_t *>("MEM_DUMP_BASE_ADDR");
         pMemDumpBytesWritten = ctx.Get<size_t *>("MEM_DUMP_BYTE_WRITTEN");
     }
+    *pMemDumpBytesWritten = 0; // Wayne: reset the Written value every run.
+
     std::reference_wrapper<size_t> memDumpBytesWritten = std::ref(*pMemDumpBytesWritten);
     auto &profiler                                     = ctx.Get<Profiler &>("profiler");
 
@@ -104,6 +107,7 @@ bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll)
         audioFileAccessorFunc =
             ctx.Get<std::function<const char *(const uint32_t)>>("featureFileNames");
     }
+
     do
     {
         hal_lcd_clear(COLOR_BLACK);
@@ -126,7 +130,7 @@ bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll)
 #if defined(DEF_DUMP_WAV)
             DumpDenoisedAudioWAVHeader(memDumpBaseAddr + memDumpBytesWritten,
                                        memDumpMaxLen - memDumpBytesWritten,
-                                       (audioDataSlider.TotalStrides() + 1) * audioFrameLen,
+                                       (audioDataSlider.TotalStrides() + 1) * audioFrameLen * sizeof(uint16_t),
                                        48000,
                                        16,
                                        1);
@@ -271,6 +275,166 @@ bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll)
     while (runAll && ctx.Get<uint32_t>("clipIndex") != startClipIdx);
 
     return true;
+}
+
+/* Noise reduction inference handler. */
+bool NoiseReductionHandlerLive(ApplicationContext &ctx)
+{
+    constexpr uint32_t dataPsnTxtInfStartX = 20;
+    constexpr uint32_t dataPsnTxtInfStartY = 40;
+
+    auto &profiler = ctx.Get<Profiler &>("profiler");
+
+    /* Get model reference. */
+    auto &model = ctx.Get<RNNoiseModel &>("model");
+    if (!model.IsInited())
+    {
+        printf_err("Model is not initialised! Terminating processing.\n");
+        return false;
+    }
+
+    /* Populate Pre-Processing related parameters. */
+    auto audioFrameLen      = ctx.Get<uint32_t>("frameLength");
+    auto audioFrameStride   = ctx.Get<uint32_t>("frameStride");
+    auto nrNumInputFeatures = ctx.Get<uint32_t>("numInputFeatures");
+
+    TfLiteTensor *inputTensor = model.GetInputTensor(0);
+    if (nrNumInputFeatures != inputTensor->bytes)
+    {
+        printf_err("Input features size must be equal to input tensor size."
+                   " Feature size = %" PRIu32 ", Tensor size = %zu.\n",
+                   nrNumInputFeatures,
+                   inputTensor->bytes);
+        return false;
+    }
+
+    TfLiteTensor *outputTensor = model.GetOutputTensor(model.m_indexForModelOutput);
+
+#define MODEL_SAMPLE_RATE        48000
+#define MODEL_SAMPLE_BIT         16
+#define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
+#define MODEL_CHANNEL            1
+#define AUDIO_CLIP_BYTESIZE      (16 * audioFrameLen * MODEL_SAMPLE_BYTE)
+
+    /* Set 16K Sample rate, 16-bit, mono for this model. */
+    if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
+    {
+        printf_err("Failed to initialise audio capture device\n");
+        return false;
+    }
+    if (hal_audio_playback_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
+    {
+        printf_err("Failed to initialise audio capture device\n");
+        return false;
+    }
+
+    uint8_t *pu8AudioClipFrameBuf = NULL;
+    pu8AudioClipFrameBuf = (uint8_t *)hal_memheap_helper_allocate(
+                               evAREANA_AT_SRAM,
+                               AUDIO_CLIP_BYTESIZE);
+    if (pu8AudioClipFrameBuf == NULL)
+    {
+        printf_err("Failed to allocate audio clip memory.( %d Bytes)\n", AUDIO_CLIP_BYTESIZE);
+        hal_audio_capture_fini();
+        return false;
+    }
+
+    uint32_t u32ClipByteSize = 0;
+
+    bool bQuit = false;
+    bool resetGRU = true;
+    arm::app::Profiler rnn_profiler{"rnn"};
+
+    while (!bQuit)
+    {
+        u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
+        if (!bDoDenoise)
+        {
+            /* bypass mode. */
+            hal_audio_playback_put_frame(&pu8AudioClipFrameBuf[0], u32ClipByteSize);
+            continue;
+        }
+
+        /* Creating a sliding window through the audio. */
+        auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
+                               u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
+                               audioFrameLen,
+                               audioFrameStride);
+
+        /* Set up pre and post-processing. */
+        std::shared_ptr<rnn::RNNoiseFeatureProcessor> featureProcessor = std::make_shared<rnn::RNNoiseFeatureProcessor>();
+        std::shared_ptr<rnn::FrameFeatures> frameFeatures = std::make_shared<rnn::FrameFeatures>();
+
+        RNNoisePreProcess preProcess = RNNoisePreProcess(inputTensor, featureProcessor, frameFeatures);
+
+        std::vector<int16_t> denoisedAudioFrame(audioFrameLen);
+        RNNoisePostProcess postProcess = RNNoisePostProcess(outputTensor, denoisedAudioFrame, featureProcessor, frameFeatures);
+
+        size_t TotalnumByteToBePlay = 0;
+
+        //rnn_profiler.StartProfiling("DoRNN");
+        while (audioDataSlider.HasNext())
+        {
+            const int16_t *inferenceWindow = audioDataSlider.Next();
+
+            if (!preProcess.DoPreProcess(inferenceWindow, audioFrameLen))
+            {
+                printf_err("Pre-processing failed.");
+                bQuit = true;
+                break;
+            }
+
+            /* Reset or copy over GRU states first to avoid TFLu memory overlap issues. */
+            if (resetGRU)
+            {
+                model.ResetGruState();
+            }
+            else
+            {
+                /* Copying gru state outputs to gru state inputs.
+                 * Call ResetGruState in between the sequence of inferences on unrelated input
+                 * data. */
+                model.CopyGruStates();
+            }
+
+            /* Run inference over this feature sliding window. */
+            if (!RunInference(model, profiler))
+            {
+                printf_err("Inference failed.");
+                bQuit = true;
+                break;
+            }
+            resetGRU = false;
+
+            /* Carry out post-processing. */
+            if (!postProcess.DoPostProcess())
+            {
+                printf_err("Post-processing failed.");
+                bQuit = true;
+                break;
+            }
+
+            {
+                size_t numByteToBePlay = numByteToBePlay = denoisedAudioFrame.size() * sizeof(int16_t);
+                TotalnumByteToBePlay += numByteToBePlay;
+                hal_audio_playback_put_frame((uint8_t *)denoisedAudioFrame.data(), numByteToBePlay);
+            }
+
+        } // while (audioDataSlider.HasNext())
+       // rnn_profiler.StopProfiling();
+        //rnn_profiler.PrintProfilingResult();
+
+        //info("u32ClipByteSize:%d, TotalnumByteToBePlay:%d\n", u32ClipByteSize, TotalnumByteToBePlay);
+        //profiler.PrintProfilingResult();
+    }
+
+    hal_audio_capture_fini();
+    hal_audio_playback_fini();
+
+    if (pu8AudioClipFrameBuf)
+        hal_memheap_helper_free(evAREANA_AT_SRAM, pu8AudioClipFrameBuf);
+
+    return false;
 }
 
 size_t DumpDenoisedAudioWAVHeader(uint8_t *memAddress,
@@ -491,3 +655,22 @@ static void IncrementAppCtxClipIdx(ApplicationContext &ctx)
 
 } /* namespace app */
 } /* namespace arm */
+
+#if defined(MLEVK_UC_LIVE_DEMO)
+int rnn_bypass(void)
+{
+    info("Bypass captured audio to speaker.\n");
+    arm::app::bDoDenoise = false;
+
+    return 0;
+}
+int rnn_denoise(void)
+{
+    info("De-noise captured audio, then playback to speaker.\n");
+    arm::app::bDoDenoise = true;
+
+    return 0;
+}
+MSH_CMD_EXPORT(rnn_bypass, bypass audio);
+MSH_CMD_EXPORT(rnn_denoise, enable RNN denoise);
+#endif

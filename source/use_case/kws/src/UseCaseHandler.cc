@@ -361,6 +361,8 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
         // profiler.PrintProfilingResult();
     }
 
+    hal_audio_capture_fini();
+
     hal_memheap_helper_free(evAREANA_AT_SRAM, pu8AudioClipFrameBuf);
 
     return false;
