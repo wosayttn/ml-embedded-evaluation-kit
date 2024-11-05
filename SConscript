@@ -18,48 +18,6 @@ def check_h_hpp_exists(path):
 mlevk_cwd = cwd
 dependencies_cwd = os.path.join(mlevk_cwd, 'dependencies')
 
-'''
-mlevk_subdir = [
-    dependencies_cwd + 'cmsis-dsp',
-    dependencies_cwd + 'cmsis-nn',
-]
-
-# ml-embedded-evaluation-kit-source
-filter = set()
-for subdir in mlevk_subdir:
-    mlevk_src_cwd = os.path.join(mlevk_cwd, subdir)
-    for root, dirs, files in os.walk(mlevk_src_cwd, topdown=True):
-        PathxScons = os.path.join(root, 'xScons')
-        if os.path.exists(PathxScons):
-            print('Filter out -> ' + root)
-            filter.add(root)
-
-for subdir in mlevk_subdir:
-    mlevk_src_cwd = os.path.join(mlevk_cwd, subdir)
-    for root, dirs, files in os.walk(mlevk_src_cwd, topdown=True):
-        for dir in dirs:
-
-            buildit = True
-            for s in filter:
-                #print('root ->' + root + ', ' + s)
-                if os.path.join(root, dir).find(s) == 0:
-                    #print('found')
-                    buildit = False
-                    break
-
-            if buildit:
-                current_path = os.path.join(root, dir)
-                #print(current_path)
-                src = src + Glob(os.path.join(current_path,'*.c')) # add all .c files
-                src = src + Glob(os.path.join(current_path,'*.cc')) # add all .cc files
-                src = src + Glob(os.path.join(current_path,'*.cpp')) # add all .cpp files
-                if check_h_hpp_exists(current_path): # add .h and .hpp path
-                    inc = inc + [current_path]
-                if check_h_hpp_exists(root): # add .h and .hpp path
-                    inc = inc + [root]
-'''
-
-
 dependencies_npu_drv_cwd = os.path.join(dependencies_cwd, 'core-driver')
 npu_drv_INCS = [
     dependencies_npu_drv_cwd + '/include',
@@ -687,7 +645,7 @@ source/application/api/common/source/Mfcc.cc
 source/application/api/common/source/Classifier.cc
 source/application/api/common/source/TensorFlowLiteMicro.cc
 source/hal/source/components/stdout/source/user_input.c
-source/hal/source/components/lcd/source/rtthread/lcd_img.c
+source/hal/source/components/lcd/source/rtthread/lcd_helper.c
 source/hal/source/components/camera/source/camera_img.c
 source/hal/source/components/audio/source/audio_helper.c
 source/hal/source/components/ext_file/source/ext_file.c

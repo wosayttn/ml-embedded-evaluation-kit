@@ -288,6 +288,8 @@ int lcd_init(void)
 
 fail_lcd_init:
 
+    s_lcd = RT_NULL;
+
     return -1;
 }
 

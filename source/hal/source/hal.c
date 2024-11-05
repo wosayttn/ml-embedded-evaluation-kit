@@ -32,7 +32,7 @@ bool hal_platform_init(void)
     if (0 != hal_lcd_init())
     {
         printf_err("hal_lcd_init failed\n");
-        return false;
+        //return false;
     }
 
     /* Initialise PMU */

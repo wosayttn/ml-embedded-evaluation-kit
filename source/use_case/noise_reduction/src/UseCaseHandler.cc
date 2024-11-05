@@ -310,13 +310,19 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
 
     TfLiteTensor *outputTensor = model.GetOutputTensor(model.m_indexForModelOutput);
 
-#define MODEL_SAMPLE_RATE        48000
+#define MODEL_SAMPLE_RATE        16000
 #define MODEL_SAMPLE_BIT         16
 #define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
 #define MODEL_CHANNEL            1
-#define AUDIO_CLIP_BYTESIZE      (16 * audioFrameLen * MODEL_SAMPLE_BYTE)
+#define AUDIO_CLIP_BYTESIZE      (32 * audioFrameLen * MODEL_SAMPLE_BYTE)
 
-    /* Set 16K Sample rate, 16-bit, mono for this model. */
+    info("MODEL_SAMPLE_RATE: %d", MODEL_SAMPLE_RATE);
+    info("MODEL_SAMPLE_BIT: %d", MODEL_SAMPLE_BIT);
+    info("MODEL_SAMPLE_BYTE: %d", MODEL_SAMPLE_BYTE);
+    info("MODEL_CHANNEL: %d", MODEL_CHANNEL);
+    info("AUDIO_CLIP_BYTESIZE: %d", AUDIO_CLIP_BYTESIZE);
+
+    /* Set 48K Sample rate, 16-bit, mono for this model. */
     if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
     {
         printf_err("Failed to initialise audio capture device\n");
@@ -415,17 +421,19 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
             }
 
             {
-                size_t numByteToBePlay = numByteToBePlay = denoisedAudioFrame.size() * sizeof(int16_t);
-                TotalnumByteToBePlay += numByteToBePlay;
+                size_t numByteToBePlay = denoisedAudioFrame.size() * sizeof(int16_t);
                 hal_audio_playback_put_frame((uint8_t *)denoisedAudioFrame.data(), numByteToBePlay);
+
+                TotalnumByteToBePlay += numByteToBePlay;
             }
 
         } // while (audioDataSlider.HasNext())
-       // rnn_profiler.StopProfiling();
-        //rnn_profiler.PrintProfilingResult();
 
-        //info("u32ClipByteSize:%d, TotalnumByteToBePlay:%d\n", u32ClipByteSize, TotalnumByteToBePlay);
-        //profiler.PrintProfilingResult();
+        // rnn_profiler.StopProfiling();
+        // rnn_profiler.PrintProfilingResult();
+
+        // info("u32ClipByteSize:%d, TotalnumByteToBePlay:%d\n", u32ClipByteSize, TotalnumByteToBePlay);
+        // profiler.PrintProfilingResult();
     }
 
     hal_audio_capture_fini();
@@ -657,20 +665,21 @@ static void IncrementAppCtxClipIdx(ApplicationContext &ctx)
 } /* namespace arm */
 
 #if defined(MLEVK_UC_LIVE_DEMO)
-int rnn_bypass(void)
+int rnn_denoise_disable(void)
 {
     info("Bypass captured audio to speaker.\n");
     arm::app::bDoDenoise = false;
 
     return 0;
 }
-int rnn_denoise(void)
+
+int rnn_denoise_enable(void)
 {
     info("De-noise captured audio, then playback to speaker.\n");
     arm::app::bDoDenoise = true;
 
     return 0;
 }
-MSH_CMD_EXPORT(rnn_bypass, bypass audio);
-MSH_CMD_EXPORT(rnn_denoise, enable RNN denoise);
+MSH_CMD_EXPORT(rnn_denoise_disable, Disable RNN de - noise);
+MSH_CMD_EXPORT(rnn_denoise_enable, Enable RNN de - noise);
 #endif

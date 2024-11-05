@@ -109,9 +109,11 @@ uint32_t audio_capture_get_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen)
             u32Remain -= size;
             u32Off += size;
 
-            //LOG_I("(%d/%d)", u32Remain, u32BufLen);
-            if (u32Remain)
-                rt_thread_mdelay(4);
+            if (size == 0)
+            {
+                rt_thread_mdelay(5);
+                LOG_I("(%d/%d)", u32Off, u32BufLen);
+            }
         }
 
         return u32BufLen;
@@ -221,9 +223,11 @@ uint32_t audio_playback_put_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen)
             u32Remain -= size;
             u32Off += size;
 
-            //LOG_I("(%d/%d)", u32Remain, u32BufLen);
-            if (u32Remain)
-                rt_thread_mdelay(10);
+            if (size == 0)
+            {
+                rt_thread_mdelay(5);
+                LOG_I("(%d/%d)", u32Off, u32BufLen);
+            }
         }
 
         return u32BufLen;
