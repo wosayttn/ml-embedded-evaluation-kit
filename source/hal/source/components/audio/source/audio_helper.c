@@ -105,7 +105,7 @@ uint32_t audio_capture_get_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen)
 
         while (u32Remain > 0)
         {
-            size = rt_device_read(s_psAudioCaptureDev, 0, pu8BufAddr + u32Off, (u32Remain > 4096) ? 4096 : u32Remain);
+            size = rt_device_read(s_psAudioCaptureDev, 0, pu8BufAddr + u32Off, (u32Remain > RT_AUDIO_RECORD_PIPE_SIZE) ? RT_AUDIO_RECORD_PIPE_SIZE : u32Remain);
             u32Remain -= size;
             u32Off += size;
 
@@ -219,7 +219,7 @@ uint32_t audio_playback_put_frame(uint8_t *pu8BufAddr, uint32_t u32BufLen)
 
         while (u32Remain > 0)
         {
-            size = rt_device_write(s_psAudioPlaybackDev, 0, pu8BufAddr + u32Off, (u32Remain > 4096) ? 4096 : u32Remain);
+            size = rt_device_write(s_psAudioPlaybackDev, 0, pu8BufAddr + u32Off, (u32Remain > RT_AUDIO_REPLAY_MP_BLOCK_SIZE) ? RT_AUDIO_REPLAY_MP_BLOCK_SIZE : u32Remain);
             u32Remain -= size;
             u32Off += size;
 

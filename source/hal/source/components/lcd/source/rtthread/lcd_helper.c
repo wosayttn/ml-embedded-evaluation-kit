@@ -107,62 +107,65 @@ static void _DisplayImage(const void *data, const uint32_t width,
                           const uint32_t pos_x, const uint32_t pos_y,
                           const uint32_t downsample_factor)
 {
-    uint32_t i, j = 0; /* for loops */
-    const uint32_t x_incr = channels * downsample_factor; /* stride. */
-    const uint32_t y_incr = channels * width * (downsample_factor - 1); /* skip rows. */
-    uint8_t *src_unsigned = (uint8_t *)data; /* temporary pointer. */
-    std_clr_2_lcd_clr_fn cvt_clr_fn = 0; /* colour conversion function. */
-    uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
-
-    /* Based on number of channels, we decide which of the above functions to use. */
-    switch (channels)
+    if (s_lcd)
     {
-    case 1:
-        cvt_clr_fn = _Gray8_to_RGB565;
-        break;
+        uint32_t i, j = 0; /* for loops */
+        const uint32_t x_incr = channels * downsample_factor; /* stride. */
+        const uint32_t y_incr = channels * width * (downsample_factor - 1); /* skip rows. */
+        uint8_t *src_unsigned = (uint8_t *)data; /* temporary pointer. */
+        std_clr_2_lcd_clr_fn cvt_clr_fn = 0; /* colour conversion function. */
+        uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
 
-    case 2:
-        break;
-
-    case 3:
-        cvt_clr_fn = _RGB888_to_RGB565;
-        break;
-
-    default:
-        printf_err("number of channels not supported by display\n");
-        return;
-    }
-
-    /* Loop over the image. */
-    if (channels != 2)
-    {
-        for (j = height; j != 0; j -= downsample_factor)
+        /* Based on number of channels, we decide which of the above functions to use. */
+        switch (channels)
         {
-            for (i = width; i != 0; i -= downsample_factor)
-            {
-                *pu16Buf = cvt_clr_fn(src_unsigned);
-                src_unsigned += x_incr;
-                pu16Buf++;
-            }
+        case 1:
+            cvt_clr_fn = _Gray8_to_RGB565;
+            break;
 
-            /* Skip rows if needed. */
-            src_unsigned += y_incr;
+        case 2:
+            break;
+
+        case 3:
+            cvt_clr_fn = _RGB888_to_RGB565;
+            break;
+
+        default:
+            printf_err("number of channels not supported by display\n");
+            return;
         }
-    }
-    else
-    {
-        memcpy(s_info.framebuffer, data, height * width * 2);
-    }
 
-    {
-        struct rt_device_rect_info rect;
+        /* Loop over the image. */
+        if (channels != 2)
+        {
+            for (j = height; j != 0; j -= downsample_factor)
+            {
+                for (i = width; i != 0; i -= downsample_factor)
+                {
+                    *pu16Buf = cvt_clr_fn(src_unsigned);
+                    src_unsigned += x_incr;
+                    pu16Buf++;
+                }
 
-        rect.x = pos_x;
-        rect.y = pos_y;
-        rect.width = width / downsample_factor;
-        rect.height = height / downsample_factor;
+                /* Skip rows if needed. */
+                src_unsigned += y_incr;
+            }
+        }
+        else
+        {
+            memcpy(s_info.framebuffer, data, height * width * 2);
+        }
 
-        rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+        {
+            struct rt_device_rect_info rect;
+
+            rect.x = pos_x;
+            rect.y = pos_y;
+            rect.width = width / downsample_factor;
+            rect.height = height / downsample_factor;
+
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+        }
     }
 }
 
@@ -171,54 +174,57 @@ static void _DrawChar(
     uint32_t cw, uint32_t ch,
     uint8_t *c)
 {
-    uint32_t i, j, k, pixs;
-    uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
-
-    /* Heatlh check: out of bounds? */
-    if ((x + cw) > s_info.width || (y + ch) > s_info.height)
+    if (s_lcd)
     {
-        return;
-    }
+        uint32_t i, j, k, pixs;
+        uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
 
-    k  = (cw + 7) / 8;
-    if (k == 1)
-    {
-        for (j = 0; j < ch; ++j)
+        /* Heatlh check: out of bounds? */
+        if ((x + cw) > s_info.width || (y + ch) > s_info.height)
         {
-            pixs = *(uint8_t *)c;
-            c += 1;
+            return;
+        }
 
-            for (i = 0; i < cw; ++i)
+        k  = (cw + 7) / 8;
+        if (k == 1)
+        {
+            for (j = 0; j < ch; ++j)
             {
-                *pu16Buf = Color[(pixs >> i) & 1];
-                pu16Buf++;
+                pixs = *(uint8_t *)c;
+                c += 1;
+
+                for (i = 0; i < cw; ++i)
+                {
+                    *pu16Buf = Color[(pixs >> i) & 1];
+                    pu16Buf++;
+                }
             }
         }
-    }
-    else if (k == 2)
-    {
-        for (j = 0; j < ch; ++j)
+        else if (k == 2)
         {
-            pixs = *(uint16_t *)c;
-            c += 2;
-
-            for (i = 0; i < cw; ++i)
+            for (j = 0; j < ch; ++j)
             {
-                *pu16Buf = Color[(pixs >> i) & 1];
-                pu16Buf++;
+                pixs = *(uint16_t *)c;
+                c += 2;
+
+                for (i = 0; i < cw; ++i)
+                {
+                    *pu16Buf = Color[(pixs >> i) & 1];
+                    pu16Buf++;
+                }
             }
         }
-    }
 
-    {
-        struct rt_device_rect_info rect;
+        {
+            struct rt_device_rect_info rect;
 
-        rect.x = x;
-        rect.y = y;
-        rect.width = cw;
-        rect.height = ch;
+            rect.x = x;
+            rect.y = y;
+            rect.width = cw;
+            rect.height = ch;
 
-        rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+        }
     }
 }
 
@@ -372,63 +378,70 @@ int lcd_display_text(const char *str, const size_t str_sz,
             _DisplayChar(current_line, current_col++, font_idx, str[i]);
         }
     }
+
     return 0;
 }
 
 int lcd_display_box(const uint32_t pos_x, const uint32_t pos_y,
                     const uint32_t width, const uint32_t height, const uint16_t color)
 {
-    /* If not within the LCD bounds, return error. */
-    if (pos_x > s_info.width || pos_y > s_info.height)
+    if (s_lcd)
     {
-        return 1;
+        /* If not within the LCD bounds, return error. */
+        if (pos_x > s_info.width || pos_y > s_info.height)
+        {
+            return 1;
+        }
+        else
+        {
+            uint32_t x, y;
+            uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
+            struct rt_device_rect_info rect;
+
+            for (y = 0; y < height; y++)
+            {
+                for (x = 0; x < width; x++)
+                {
+                    *pu16Buf = color;
+                    pu16Buf++;
+                }
+            }
+
+            rect.x = pos_x;
+            rect.y = pos_y;
+            rect.width = width;
+            rect.height = height;
+
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+        }
+
     }
-    else
+    return 0;
+}
+
+int lcd_clear(const uint16_t color)
+{
+    if (s_lcd)
     {
         uint32_t x, y;
         uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
         struct rt_device_rect_info rect;
 
-        for (y = 0; y < height; y++)
+        for (y = 0; y < s_info.height; y++)
         {
-            for (x = 0; x < width; x++)
+            for (x = 0; x < s_info.width; x++)
             {
                 *pu16Buf = color;
                 pu16Buf++;
             }
         }
 
-        rect.x = pos_x;
-        rect.y = pos_y;
-        rect.width = width;
-        rect.height = height;
-
+        rect.x = 0;
+        rect.y = 0;
+        rect.width = s_info.width;
+        rect.height = s_info.height;
         rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
     }
-
-    return 0;
-}
-
-int lcd_clear(const uint16_t color)
-{
-    uint32_t x, y;
-    uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
-    struct rt_device_rect_info rect;
-
-    for (y = 0; y < s_info.height; y++)
-    {
-        for (x = 0; x < s_info.width; x++)
-        {
-            *pu16Buf = color;
-            pu16Buf++;
-        }
-    }
-
-    rect.x = 0;
-    rect.y = 0;
-    rect.width = s_info.width;
-    rect.height = s_info.height;
-    rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
 
     return 0;
 }

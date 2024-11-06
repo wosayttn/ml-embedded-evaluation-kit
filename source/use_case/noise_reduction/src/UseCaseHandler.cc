@@ -314,13 +314,13 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
 #define MODEL_SAMPLE_BIT         16
 #define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
 #define MODEL_CHANNEL            1
-#define AUDIO_CLIP_BYTESIZE      (32 * audioFrameLen * MODEL_SAMPLE_BYTE)
+#define AUDIO_CLIP_BYTESIZE      (4 * audioFrameLen * MODEL_SAMPLE_BYTE)
 
-    info("MODEL_SAMPLE_RATE: %d", MODEL_SAMPLE_RATE);
-    info("MODEL_SAMPLE_BIT: %d", MODEL_SAMPLE_BIT);
-    info("MODEL_SAMPLE_BYTE: %d", MODEL_SAMPLE_BYTE);
-    info("MODEL_CHANNEL: %d", MODEL_CHANNEL);
-    info("AUDIO_CLIP_BYTESIZE: %d", AUDIO_CLIP_BYTESIZE);
+    info("MODEL_SAMPLE_RATE: %d\n", MODEL_SAMPLE_RATE);
+    info("MODEL_SAMPLE_BIT: %d\n", MODEL_SAMPLE_BIT);
+    info("MODEL_SAMPLE_BYTE: %d\n", MODEL_SAMPLE_BYTE);
+    info("MODEL_CHANNEL: %d\n", MODEL_CHANNEL);
+    info("AUDIO_CLIP_BYTESIZE: %d\n", AUDIO_CLIP_BYTESIZE);
 
     /* Set 48K Sample rate, 16-bit, mono for this model. */
     if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
@@ -345,15 +345,20 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
         return false;
     }
 
-    uint32_t u32ClipByteSize = 0;
+    /* Set up pre and post-processing. */
+    std::shared_ptr<rnn::RNNoiseFeatureProcessor> featureProcessor = std::make_shared<rnn::RNNoiseFeatureProcessor>();
+    std::shared_ptr<rnn::FrameFeatures> frameFeatures = std::make_shared<rnn::FrameFeatures>();
+
+    RNNoisePreProcess preProcess = RNNoisePreProcess(inputTensor, featureProcessor, frameFeatures);
+
+    std::vector<int16_t> denoisedAudioFrame(audioFrameLen);
+    RNNoisePostProcess postProcess = RNNoisePostProcess(outputTensor, denoisedAudioFrame, featureProcessor, frameFeatures);
 
     bool bQuit = false;
     bool resetGRU = true;
-    arm::app::Profiler rnn_profiler{"rnn"};
-
     while (!bQuit)
     {
-        u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
+        uint32_t u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
         if (!bDoDenoise)
         {
             /* bypass mode. */
@@ -367,18 +372,8 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
                                audioFrameLen,
                                audioFrameStride);
 
-        /* Set up pre and post-processing. */
-        std::shared_ptr<rnn::RNNoiseFeatureProcessor> featureProcessor = std::make_shared<rnn::RNNoiseFeatureProcessor>();
-        std::shared_ptr<rnn::FrameFeatures> frameFeatures = std::make_shared<rnn::FrameFeatures>();
-
-        RNNoisePreProcess preProcess = RNNoisePreProcess(inputTensor, featureProcessor, frameFeatures);
-
-        std::vector<int16_t> denoisedAudioFrame(audioFrameLen);
-        RNNoisePostProcess postProcess = RNNoisePostProcess(outputTensor, denoisedAudioFrame, featureProcessor, frameFeatures);
-
         size_t TotalnumByteToBePlay = 0;
 
-        //rnn_profiler.StartProfiling("DoRNN");
         while (audioDataSlider.HasNext())
         {
             const int16_t *inferenceWindow = audioDataSlider.Next();
@@ -423,17 +418,10 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
             {
                 size_t numByteToBePlay = denoisedAudioFrame.size() * sizeof(int16_t);
                 hal_audio_playback_put_frame((uint8_t *)denoisedAudioFrame.data(), numByteToBePlay);
-
                 TotalnumByteToBePlay += numByteToBePlay;
             }
 
         } // while (audioDataSlider.HasNext())
-
-        // rnn_profiler.StopProfiling();
-        // rnn_profiler.PrintProfilingResult();
-
-        // info("u32ClipByteSize:%d, TotalnumByteToBePlay:%d\n", u32ClipByteSize, TotalnumByteToBePlay);
-        // profiler.PrintProfilingResult();
     }
 
     hal_audio_capture_fini();

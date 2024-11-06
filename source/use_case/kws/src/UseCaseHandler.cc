@@ -253,10 +253,7 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
 #define MODEL_SAMPLE_BIT         16
 #define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
 #define MODEL_CHANNEL            1
-#define AUDIO_CLIP_SECOND        1
-#define AUDIO_CLIP_BYTESIZE      (MODEL_SAMPLE_RATE * MODEL_SAMPLE_BYTE * MODEL_CHANNEL * AUDIO_CLIP_SECOND)
-
-#define AUDIO_BATCH             1
+#define AUDIO_CLIP_BYTESIZE      (preProcess.m_audioDataWindowSize * MODEL_SAMPLE_BYTE)
 
     /* Set 16K Sample rate, 16-bit, mono for this model. */
     if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
@@ -276,26 +273,10 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
         return false;
     }
 
-    uint32_t u32ClipByteSize = 0;
     while (1)
     {
         /* Creating a sliding window through the whole audio clip. */
-#if (AUDIO_BATCH==1)
-        u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
-#else
-        uint32_t u32StrideByteSize = preProcess.m_audioDataStride * MODEL_SAMPLE_BYTE;
-
-        if (u32ClipByteSize > 0)
-        {
-            memcpy(pu8AudioClipFrameBuf, &pu8AudioClipFrameBuf[preProcess.m_audioDataStride], u32StrideByteSize);
-            u32ClipByteSize -= u32StrideByteSize;
-        }
-        do
-        {
-            u32ClipByteSize += hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[u32ClipByteSize], u32StrideByteSize);
-        }
-        while (u32ClipByteSize < (preProcess.m_audioDataWindowSize * MODEL_SAMPLE_BYTE));
-#endif
+        uint32_t u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
 
         auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
                                u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
@@ -309,15 +290,6 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
         while (audioDataSlider.HasNext())
         {
             const int16_t *inferenceWindow = audioDataSlider.Next();
-
-#if 0
-            info("Inference %zu/%zu\n",
-                 audioDataSlider.Index() + 1,
-                 audioDataSlider.TotalStrides() + 1);
-            info("u32ClipByteSize: %d\n", u32ClipByteSize);
-            info("audioDataWindowSize: %d\n", preProcess.m_audioDataWindowSize);
-            info("audioDataStride: %d\n", preProcess.m_audioDataStride);
-#endif
 
             /* Run the pre-processing, inference and post-processing. */
             if (!preProcess.DoPreProcess(inferenceWindow, audioDataSlider.Index()))
@@ -344,11 +316,6 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
                                           audioDataSlider.Index() * secondsPerSample * preProcess.m_audioDataStride,
                                           audioDataSlider.Index(),
                                           scoreThreshold));
-
-#if VERIFY_TEST_OUTPUT
-            DumpTensor(outputTensor);
-#endif        /* VERIFY_TEST_OUTPUT */
-
         } /* while (audioDataSlider.HasNext()) */
 
         ctx.Set<std::vector<kws::KwsResult>>("results", finalResults);
@@ -358,7 +325,6 @@ bool ClassifyAudioHandlerLive(ApplicationContext &ctx)
             break;
         }
 
-        // profiler.PrintProfilingResult();
     }
 
     hal_audio_capture_fini();

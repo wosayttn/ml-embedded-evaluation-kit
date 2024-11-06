@@ -216,11 +216,6 @@ bool ClassifyVibrationHandlerLive(ApplicationContext &ctx)
 #define MODEL_CHANNEL            1
 #define AUDIO_CLIP_BYTESIZE      (preProcess.GetAudioWindowSize() * MODEL_SAMPLE_BYTE)
 
-    info("AUDIO_CLIP_BYTESIZE: %d, WS:%d, DS:%d\n",
-         AUDIO_CLIP_BYTESIZE,
-         preProcess.GetAudioWindowSize(),
-         preProcess.GetAudioDataStride());
-
     /* Set 16K Sample rate, 16-bit, mono for this model. */
     if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
     {
@@ -242,13 +237,10 @@ bool ClassifyVibrationHandlerLive(ApplicationContext &ctx)
     uint32_t u32ClipByteSize = 0;
     while (1)
     {
-        /* Creating a sliding window through the whole audio clip. */
         u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
-        //memset(&pu8AudioClipFrameBuf[0], 0, u32ClipByteSize);
-        //u32ClipByteSize = hal_audio_transcode_pcm16to8(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
 
         /* Creating a sliding window through the whole audio clip. */
-        auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
+        auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16_t *)pu8AudioClipFrameBuf,
                                u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
                                preProcess.GetAudioWindowSize(),
                                preProcess.GetAudioDataStride());
