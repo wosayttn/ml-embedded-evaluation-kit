@@ -18,14 +18,13 @@
 
 #include "log_macros.h"
 #include "rtthread.h"
+#include "drv_memheap.h"
 
 //#undef DBG_ENABLE
 #define DBG_LEVEL LOG_LVL_INFO
 #define DBG_SECTION_NAME  "ml.memheap"
 #define DBG_COLOR
 #include <rtdbg.h>
-
-//#undef BSP_USING_SPIM1
 
 void *memheap_helper_allocate(E_AREANA_PLACEMENT evAreanaPlacement, uint32_t u32Size)
 {
@@ -39,7 +38,7 @@ void *memheap_helper_allocate(E_AREANA_PLACEMENT evAreanaPlacement, uint32_t u32
 
     case evAREANA_AT_HYPERRAM:
 #if defined(BSP_USING_SPIM1)
-        p = rt_memheap_alloc(nu_hyperram_get_memheap("spim1"), u32Size + 32);
+        p = rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_SPIM1), u32Size + 32);
 #endif
         break;
     default:
@@ -48,6 +47,8 @@ void *memheap_helper_allocate(E_AREANA_PLACEMENT evAreanaPlacement, uint32_t u32
 
     if (p == RT_NULL)
     {
+        LOG_E("Failed to allocate from memory heap.(%d, %d Bytes)", evAreanaPlacement, u32Size);
+
         goto exit_memheap_helper_allocate;
     }
 

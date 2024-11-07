@@ -31,6 +31,4 @@ void *memheap_helper_allocate(E_AREANA_PLACEMENT evAreanaPlacement, uint32_t u32
 
 void memheap_helper_free(E_AREANA_PLACEMENT evAreanaPlacement, void *p);
 
-struct rt_memheap *nu_hyperram_get_memheap(const char *name);
-
 #endif /* MEMHEAP_HELPER_H */
