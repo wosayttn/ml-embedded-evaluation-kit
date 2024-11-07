@@ -64,6 +64,14 @@ menu "ml-embedded-evaluation-kit"
                 default "/mnt/sd0/model"
         endif
 
+        config MLEVK_UC_LCD_RENDERING_DEVICE
+            string "Specific lcd device for rendering "
+            default "lcd"
+
+        config MLEVK_UC_LCD_DISPLAY_RIGHT
+            bool "Display result on right screen"
+            default y
+
         config MLEVK_UC_AUDIO_CAPTURE_DEVICE
             string "Specific audio device for recording"
             default "dmic0"

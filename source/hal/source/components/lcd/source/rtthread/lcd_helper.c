@@ -23,11 +23,11 @@
 #include <string.h>
 #include <assert.h>
 
-#if !defined(NU_PKG_MLEVK_RENDERING_LAYER)
-    #define NU_PKG_MLEVK_RENDERING_LAYER      "lcd"
+#if !defined(MLEVK_UC_LCD_RENDERING_DEVICE)
+    #define MLEVK_UC_LCD_RENDERING_DEVICE      "lcd"
 #endif
 
-#if defined(DEF_DISPLAY_RIGHT_PART)
+#if defined(MLEVK_UC_LCD_DISPLAY_RIGHT)
     #define SHADOW_BUFFER_X_OFFSET               (s_info.width / 2)
     #define SHADOW_BUFFER_WIDTH                  (s_info.width / 2)
     #define NU_PKG_MLEVK_RENDERING_SHIFT         (((BSP_LCD_BPP/8) * BSP_LCD_WIDTH * BSP_LCD_HEIGHT)/2)
@@ -304,10 +304,10 @@ int lcd_init(void)
 {
     rt_err_t result;
 
-    s_lcd = rt_device_find(NU_PKG_MLEVK_RENDERING_LAYER);
+    s_lcd = rt_device_find(MLEVK_UC_LCD_RENDERING_DEVICE);
     if (s_lcd == RT_NULL)
     {
-        rt_kprintf("Fail to find %s\n", NU_PKG_MLEVK_RENDERING_LAYER);
+        rt_kprintf("Fail to find %s\n", MLEVK_UC_LCD_RENDERING_DEVICE);
         goto fail_lcd_init;
     }
 
@@ -323,7 +323,7 @@ int lcd_init(void)
     result = rt_device_open(s_lcd, 0);
     if (result != RT_EOK)
     {
-        rt_kprintf("Fail to open ml %s device.\n", NU_PKG_MLEVK_RENDERING_LAYER);
+        rt_kprintf("Fail to open ml %s device.\n", MLEVK_UC_LCD_RENDERING_DEVICE);
         goto fail_lcd_init;
     }
 
