@@ -27,8 +27,36 @@
     #define NU_PKG_MLEVK_RENDERING_LAYER      "lcd"
 #endif
 
+#if defined(DEF_DISPLAY_RIGHT_PART)
+    #define SHADOW_BUFFER_X_OFFSET               (s_info.width / 2)
+    #define SHADOW_BUFFER_WIDTH                  (s_info.width / 2)
+    #define NU_PKG_MLEVK_RENDERING_SHIFT         (((BSP_LCD_BPP/8) * BSP_LCD_WIDTH * BSP_LCD_HEIGHT)/2)
+#endif
+
+#if !defined(SHADOW_BUFFER_WIDTH)
+    #define SHADOW_BUFFER_WIDTH               (s_info.width)
+#endif
+
+#if !defined(SHADOW_BUFFER_HEIGHT)
+    #define SHADOW_BUFFER_HEIGHT              (s_info.height)
+#endif
+
+#if !defined(SHADOW_BUFFER_X_OFFSET)
+    #define SHADOW_BUFFER_X_OFFSET            0
+#endif
+
+#if !defined(SHADOW_BUFFER_Y_OFFSET)
+    #define SHADOW_BUFFER_Y_OFFSET            0
+#endif
+
+#if !defined(NU_PKG_MLEVK_RENDERING_SHIFT)
+    #define NU_PKG_MLEVK_RENDERING_SHIFT      0
+#endif
+
+#define SHADOW_BUFFER_START                   (s_info.framebuffer + NU_PKG_MLEVK_RENDERING_SHIFT)
+
 static rt_device_t s_lcd = RT_NULL;
-static struct rt_device_graphic_info s_info = {0};
+static struct rt_device_graphic_info    s_info = {0};
 
 #define BG_COLOR  0                     /* Background colour                  */
 #define TXT_COLOR 1                     /* Text colour                        */
@@ -54,6 +82,17 @@ static struct rt_device_graphic_info s_info = {0};
 #define White           0xFFFF      /* 255, 255, 255 */
 
 static volatile unsigned short Color[2] = {Black, White};
+
+
+int lcd_get_width(void)
+{
+    return SHADOW_BUFFER_WIDTH;
+}
+
+int lcd_get_height(void)
+{
+    return SHADOW_BUFFER_HEIGHT;
+}
 
 static int show_title(void)
 {
@@ -114,7 +153,7 @@ static void _DisplayImage(const void *data, const uint32_t width,
         const uint32_t y_incr = channels * width * (downsample_factor - 1); /* skip rows. */
         uint8_t *src_unsigned = (uint8_t *)data; /* temporary pointer. */
         std_clr_2_lcd_clr_fn cvt_clr_fn = 0; /* colour conversion function. */
-        uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
+        uint16_t *pu16Buf = (uint16_t *)SHADOW_BUFFER_START;
 
         /* Based on number of channels, we decide which of the above functions to use. */
         switch (channels)
@@ -153,18 +192,18 @@ static void _DisplayImage(const void *data, const uint32_t width,
         }
         else
         {
-            memcpy(s_info.framebuffer, data, height * width * 2);
+            memcpy(SHADOW_BUFFER_START, data, height * width * 2);
         }
 
         {
             struct rt_device_rect_info rect;
 
-            rect.x = pos_x;
-            rect.y = pos_y;
+            rect.x = pos_x + SHADOW_BUFFER_X_OFFSET;
+            rect.y = pos_y + SHADOW_BUFFER_Y_OFFSET;
             rect.width = width / downsample_factor;
             rect.height = height / downsample_factor;
-
-            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+            rect.framebuffer = SHADOW_BUFFER_START;
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE2, &rect);
         }
     }
 }
@@ -177,10 +216,10 @@ static void _DrawChar(
     if (s_lcd)
     {
         uint32_t i, j, k, pixs;
-        uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
+        uint16_t *pu16Buf = (uint16_t *)SHADOW_BUFFER_START;
 
         /* Heatlh check: out of bounds? */
-        if ((x + cw) > s_info.width || (y + ch) > s_info.height)
+        if ((x + cw) > SHADOW_BUFFER_WIDTH || (y + ch) > SHADOW_BUFFER_HEIGHT)
         {
             return;
         }
@@ -218,12 +257,12 @@ static void _DrawChar(
         {
             struct rt_device_rect_info rect;
 
-            rect.x = x;
-            rect.y = y;
+            rect.x = x + SHADOW_BUFFER_X_OFFSET;
+            rect.y = y + SHADOW_BUFFER_Y_OFFSET;
             rect.width = cw;
             rect.height = ch;
-
-            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+            rect.framebuffer = SHADOW_BUFFER_START;
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE2, &rect);
         }
     }
 }
@@ -306,8 +345,8 @@ int lcd_display_image(const uint8_t *data, const uint32_t width,
 {
     /* Health checks */
     assert(data);
-    if ((pos_x + (width / downsample_factor) > s_info.width) ||
-            (pos_y + (height / downsample_factor) > s_info.height))
+    if ((pos_x + (width / downsample_factor) > SHADOW_BUFFER_WIDTH) ||
+            (pos_y + (height / downsample_factor) > SHADOW_BUFFER_HEIGHT))
     {
         printf_err("Invalid image size for given location!\n");
         return 1;
@@ -340,7 +379,7 @@ int lcd_display_text(const char *str, const size_t str_sz,
     }
 
     /* If not within the LCD bounds, return error. */
-    if (((pos_x + x_span) > s_info.width) || ((pos_y + y_span) > s_info.height))
+    if (((pos_x + x_span) > SHADOW_BUFFER_WIDTH) || ((pos_y + y_span) > SHADOW_BUFFER_HEIGHT))
     {
         return 1;
     }
@@ -349,8 +388,8 @@ int lcd_display_text(const char *str, const size_t str_sz,
         const uint8_t font_idx = 0; /* We are using the custom font = 0 */
 
         const uint32_t col = pos_x / x_span;
-        const uint32_t max_cols = s_info.width / x_span - 1;
-        const uint32_t max_lines = s_info.height / y_span - 1;
+        const uint32_t max_cols = SHADOW_BUFFER_WIDTH / x_span - 1;
+        const uint32_t max_lines = SHADOW_BUFFER_HEIGHT / y_span - 1;
 
         uint32_t i = 0;
         uint32_t current_line = pos_y / y_span;
@@ -388,14 +427,14 @@ int lcd_display_box(const uint32_t pos_x, const uint32_t pos_y,
     if (s_lcd)
     {
         /* If not within the LCD bounds, return error. */
-        if (pos_x > s_info.width || pos_y > s_info.height)
+        if (pos_x > SHADOW_BUFFER_WIDTH || pos_y > SHADOW_BUFFER_HEIGHT)
         {
             return 1;
         }
         else
         {
             uint32_t x, y;
-            uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
+            uint16_t *pu16Buf = (uint16_t *)SHADOW_BUFFER_START;
             struct rt_device_rect_info rect;
 
             for (y = 0; y < height; y++)
@@ -407,12 +446,12 @@ int lcd_display_box(const uint32_t pos_x, const uint32_t pos_y,
                 }
             }
 
-            rect.x = pos_x;
-            rect.y = pos_y;
+            rect.x = pos_x + SHADOW_BUFFER_X_OFFSET;
+            rect.y = pos_y + SHADOW_BUFFER_Y_OFFSET;
             rect.width = width;
             rect.height = height;
-
-            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+            rect.framebuffer = SHADOW_BUFFER_START;
+            rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE2, &rect);
         }
 
     }
@@ -424,23 +463,24 @@ int lcd_clear(const uint16_t color)
     if (s_lcd)
     {
         uint32_t x, y;
-        uint16_t *pu16Buf = (uint16_t *)s_info.framebuffer;
+        uint16_t *pu16Buf = (uint16_t *)SHADOW_BUFFER_START;
         struct rt_device_rect_info rect;
 
-        for (y = 0; y < s_info.height; y++)
+        for (y = 0; y < SHADOW_BUFFER_HEIGHT; y++)
         {
-            for (x = 0; x < s_info.width; x++)
+            for (x = 0; x < SHADOW_BUFFER_WIDTH; x++)
             {
                 *pu16Buf = color;
                 pu16Buf++;
             }
         }
 
-        rect.x = 0;
-        rect.y = 0;
-        rect.width = s_info.width;
-        rect.height = s_info.height;
-        rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE, &rect);
+        rect.x = 0 + SHADOW_BUFFER_X_OFFSET;
+        rect.y = 0 + SHADOW_BUFFER_Y_OFFSET;
+        rect.width = SHADOW_BUFFER_WIDTH;
+        rect.height = SHADOW_BUFFER_HEIGHT;
+        rect.framebuffer = SHADOW_BUFFER_START;
+        rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE2, &rect);
     }
 
     return 0;
@@ -452,12 +492,3 @@ int lcd_set_text_color(const uint16_t color)
     return 0;
 }
 
-int lcd_get_width(void)
-{
-    return s_info.width;
-}
-
-int lcd_get_height(void)
-{
-    return s_info.height;
-}
