@@ -19,6 +19,7 @@
 #define PLATFORM_DRIVERS_H
 
 #include "rtthread.h"
+#include "drv_memheap.h"
 #include <time.h>
 #include "log_macros.h"     /* Logging related helpers. */
 #include "lcd_img.h"        /* LCD functions */

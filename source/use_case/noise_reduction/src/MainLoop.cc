@@ -135,15 +135,6 @@ void main_loop()
         caseContext.Set<uint32_t>("frameLength", arm::app::rnn::g_FrameLength);
         caseContext.Set<uint32_t>("frameStride", arm::app::rnn::g_FrameStride);
 
-#if defined(MLEVK_UC_LIVE_DEMO)
-        NoiseReductionHandlerLive(caseContext);
-#else
-
-        bool executionSuccessful = true;
-        constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
-
-        SetAppCtxClipIdx(caseContext, 0);
-
 #define MEM_DUMP_LEN     0x00080000
 #if defined(MEM_DUMP_LEN)
         constexpr size_t memDumpMaxLen = MEM_DUMP_LEN;
@@ -161,6 +152,15 @@ void main_loop()
         caseContext.Set<size_t *>("MEM_DUMP_BYTE_WRITTEN", &memDumpBytesWritten);
         info("Allocated memory dumping @0x%08X.( %d Bytes)\n", memDumpBaseAddr, MEM_DUMP_LEN);
 #endif /* defined(MEM_DUMP_LEN) */
+
+#if defined(MLEVK_UC_LIVE_DEMO)
+        NoiseReductionHandlerLive(caseContext);
+#else
+
+        bool executionSuccessful = true;
+        constexpr bool bUseMenu = NUMBER_OF_FILES > 1 ? true : false;
+
+        SetAppCtxClipIdx(caseContext, 0);
 
         /* Loop. */
         do
@@ -208,13 +208,17 @@ void main_loop()
         while (executionSuccessful && bUseMenu);
 
 #if defined(MEM_DUMP_LEN)
-        hal_memheap_helper_free(evAREANA_AT_HYPERRAM, memDumpBaseAddr);
+        if (memDumpBaseAddr)
+        {
+            hal_memheap_helper_free(evAREANA_AT_HYPERRAM, memDumpBaseAddr);
+        }
 #endif
 
 #endif
     }
 
 exit_main_loop:
+
 
 #if defined(MLEVK_UC_AREANA_DYNAMIC_ALLOCATE)
     if (pvAreanaBufAddr)

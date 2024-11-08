@@ -25,7 +25,7 @@
 #include "hal.h"
 #include "log_macros.h"
 
-#define DEF_DUMP_WAV
+//#define DEF_DUMP_WAV
 
 namespace arm
 {
@@ -277,12 +277,212 @@ bool NoiseReductionHandler(ApplicationContext &ctx, bool runAll)
     return true;
 }
 
+
+
+
+#if defined(DEF_DUMP_WAV)
+
 /* Noise reduction inference handler. */
 bool NoiseReductionHandlerLive(ApplicationContext &ctx)
 {
-    constexpr uint32_t dataPsnTxtInfStartX = 20;
-    constexpr uint32_t dataPsnTxtInfStartY = 40;
+    /* Variables used for memory dumping. */
+    size_t memDumpMaxLen            = 0;
+    uint8_t *memDumpBaseAddr        = nullptr;
+    size_t undefMemDumpBytesWritten = 0;
+    size_t *pMemDumpBytesWritten    = &undefMemDumpBytesWritten;
+    if (ctx.Has("MEM_DUMP_LEN") && ctx.Has("MEM_DUMP_BASE_ADDR") &&
+            ctx.Has("MEM_DUMP_BYTE_WRITTEN"))
+    {
+        memDumpMaxLen        = ctx.Get<size_t>("MEM_DUMP_LEN");
+        memDumpBaseAddr      = ctx.Get<uint8_t *>("MEM_DUMP_BASE_ADDR");
+        pMemDumpBytesWritten = ctx.Get<size_t *>("MEM_DUMP_BYTE_WRITTEN");
+    }
+    *pMemDumpBytesWritten = 0; // Wayne: reset the Written value every run.
 
+    std::reference_wrapper<size_t> memDumpBytesWritten = std::ref(*pMemDumpBytesWritten);
+
+    auto &profiler = ctx.Get<Profiler &>("profiler");
+
+    /* Get model reference. */
+    auto &model = ctx.Get<RNNoiseModel &>("model");
+    if (!model.IsInited())
+    {
+        printf_err("Model is not initialised! Terminating processing.\n");
+        return false;
+    }
+
+    /* Populate Pre-Processing related parameters. */
+    auto audioFrameLen      = ctx.Get<uint32_t>("frameLength");
+    auto audioFrameStride   = ctx.Get<uint32_t>("frameStride");
+    auto nrNumInputFeatures = ctx.Get<uint32_t>("numInputFeatures");
+
+    TfLiteTensor *inputTensor = model.GetInputTensor(0);
+    if (nrNumInputFeatures != inputTensor->bytes)
+    {
+        printf_err("Input features size must be equal to input tensor size."
+                   " Feature size = %" PRIu32 ", Tensor size = %zu.\n",
+                   nrNumInputFeatures,
+                   inputTensor->bytes);
+        return false;
+    }
+
+    TfLiteTensor *outputTensor = model.GetOutputTensor(model.m_indexForModelOutput);
+
+#define MODEL_SAMPLE_RATE        48000
+#define MODEL_SAMPLE_BIT         16
+#define MODEL_SAMPLE_BYTE        (MODEL_SAMPLE_BIT/8)
+#define MODEL_CHANNEL            1
+#define AUDIO_RECORD_SECOND      5
+#define AUDIO_CLIP_BYTESIZE      (MODEL_SAMPLE_RATE * MODEL_SAMPLE_BYTE * AUDIO_RECORD_SECOND)
+
+    info("MODEL_SAMPLE_RATE: %d\n", MODEL_SAMPLE_RATE);
+    info("MODEL_SAMPLE_BIT: %d\n", MODEL_SAMPLE_BIT);
+    info("MODEL_SAMPLE_BYTE: %d\n", MODEL_SAMPLE_BYTE);
+    info("MODEL_CHANNEL: %d\n", MODEL_CHANNEL);
+    info("AUDIO_CLIP_BYTESIZE: %d\n", AUDIO_CLIP_BYTESIZE);
+    info("AUDIO_RECORD_SECOND: %d\n", AUDIO_RECORD_SECOND);
+
+    /* Set 48K Sample rate, 16-bit, mono for this model. */
+    if (hal_audio_capture_init(MODEL_SAMPLE_RATE, MODEL_SAMPLE_BIT, MODEL_CHANNEL) < 0)
+    {
+        printf_err("Failed to initialise audio capture device\n");
+        return false;
+    }
+
+    uint8_t *pu8AudioClipFrameBuf = NULL;
+    pu8AudioClipFrameBuf = (uint8_t *)hal_memheap_helper_allocate(
+                               evAREANA_AT_HYPERRAM,
+                               AUDIO_CLIP_BYTESIZE);
+    if (pu8AudioClipFrameBuf == NULL)
+    {
+        printf_err("Failed to allocate audio clip memory.( %d Bytes)\n", AUDIO_CLIP_BYTESIZE);
+        hal_audio_capture_fini();
+        return false;
+    }
+
+    /* Set up pre and post-processing. */
+    std::shared_ptr<rnn::RNNoiseFeatureProcessor> featureProcessor = std::make_shared<rnn::RNNoiseFeatureProcessor>();
+    std::shared_ptr<rnn::FrameFeatures> frameFeatures = std::make_shared<rnn::FrameFeatures>();
+
+    RNNoisePreProcess preProcess = RNNoisePreProcess(inputTensor, featureProcessor, frameFeatures);
+
+    std::vector<int16_t> denoisedAudioFrame(audioFrameLen);
+    RNNoisePostProcess postProcess = RNNoisePostProcess(outputTensor, denoisedAudioFrame, featureProcessor, frameFeatures);
+
+    bool resetGRU = true;
+    uint32_t u32ClipByteSize = hal_audio_capture_get_frame(&pu8AudioClipFrameBuf[0], AUDIO_CLIP_BYTESIZE);
+    hal_audio_capture_fini();
+
+    /* Creating a sliding window through the audio. */
+    auto audioDataSlider = audio::SlidingWindow<const int16_t>((int16 *)pu8AudioClipFrameBuf,
+                           u32ClipByteSize / MODEL_SAMPLE_BYTE, // Sample number, not byte number.
+                           audioFrameLen,
+                           audioFrameStride);
+
+    /* Before de-noise wav */
+    auto startDumpAddress = memDumpBaseAddr;
+    size_t WavBytesWritten = 0;
+
+    WavBytesWritten +=
+        DumpDenoisedAudioWAVHeader(memDumpBaseAddr,
+                                   memDumpMaxLen,
+                                   u32ClipByteSize,
+                                   MODEL_SAMPLE_RATE,
+                                   MODEL_SAMPLE_BIT,
+                                   MODEL_CHANNEL);
+
+    std::memcpy(memDumpBaseAddr + WavBytesWritten, &pu8AudioClipFrameBuf[0], u32ClipByteSize);
+    WavBytesWritten += u32ClipByteSize;
+
+    char szPath[256];
+    snprintf(szPath, sizeof(szPath), "%s/ad/before_denoise_%d_%d_%d.wav",
+             MLEVK_UC_DYNAMIC_LOAD_PATH,
+             MODEL_SAMPLE_RATE,
+             MODEL_SAMPLE_BIT,
+             MODEL_CHANNEL);
+
+    hal_ext_file_export(
+        szPath,
+        (void *)startDumpAddress,
+        WavBytesWritten);
+
+    /* After de-noise wav */
+    memDumpBytesWritten +=
+        DumpDenoisedAudioWAVHeader(memDumpBaseAddr,
+                                   memDumpMaxLen,
+                                   (audioDataSlider.TotalStrides() + 1) * audioFrameLen * sizeof(uint16_t),
+                                   MODEL_SAMPLE_RATE,
+                                   MODEL_SAMPLE_BIT,
+                                   MODEL_CHANNEL);
+
+    while (audioDataSlider.HasNext())
+    {
+        const int16_t *inferenceWindow = audioDataSlider.Next();
+
+        if (!preProcess.DoPreProcess(inferenceWindow, audioFrameLen))
+        {
+            printf_err("Pre-processing failed.");
+            break;
+        }
+
+        /* Reset or copy over GRU states first to avoid TFLu memory overlap issues. */
+        if (resetGRU)
+        {
+            model.ResetGruState();
+        }
+        else
+        {
+            /* Copying gru state outputs to gru state inputs.
+             * Call ResetGruState in between the sequence of inferences on unrelated input
+             * data. */
+            model.CopyGruStates();
+        }
+
+        /* Run inference over this feature sliding window. */
+        if (!RunInference(model, profiler))
+        {
+            printf_err("Inference failed.");
+            break;
+        }
+        resetGRU = false;
+
+        /* Carry out post-processing. */
+        if (!postProcess.DoPostProcess())
+        {
+            printf_err("Post-processing failed.");
+            break;
+        }
+
+        /* Dump final post processed output to memory. */
+        memDumpBytesWritten +=
+            DumpOutputDenoisedAudioFrame(denoisedAudioFrame,
+                                         memDumpBaseAddr + memDumpBytesWritten,
+                                         memDumpMaxLen - memDumpBytesWritten);
+
+    } // while (audioDataSlider.HasNext())
+
+    snprintf(szPath, sizeof(szPath), "%s/ad/after_denoise_%d_%d_%d.wav",
+             MLEVK_UC_DYNAMIC_LOAD_PATH,
+             MODEL_SAMPLE_RATE,
+             MODEL_SAMPLE_BIT,
+             MODEL_CHANNEL);
+
+    hal_ext_file_export(
+        szPath,
+        (void *)startDumpAddress,
+        memDumpBytesWritten);
+
+    if (pu8AudioClipFrameBuf)
+        hal_memheap_helper_free(evAREANA_AT_HYPERRAM, pu8AudioClipFrameBuf);
+
+    return false;
+}
+
+#else
+
+/* Noise reduction inference handler. */
+bool NoiseReductionHandlerLive(ApplicationContext &ctx)
+{
     auto &profiler = ctx.Get<Profiler &>("profiler");
 
     /* Get model reference. */
@@ -432,6 +632,8 @@ bool NoiseReductionHandlerLive(ApplicationContext &ctx)
 
     return false;
 }
+
+#endif
 
 size_t DumpDenoisedAudioWAVHeader(uint8_t *memAddress,
                                   size_t memSize,

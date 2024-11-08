@@ -67,10 +67,6 @@ MSH_CMD_EXPORT(mlevk_go, Start MLEVK);
 
 #if defined(MLEVK_UC_LIVE_DEMO)
 
-#define THREAD_PRIORITY   20
-#define THREAD_STACK_SIZE 4096
-#define THREAD_TIMESLICE  5
-
 void mlevk_entry(void *p)
 {
     mlevk_go();
@@ -78,17 +74,68 @@ void mlevk_entry(void *p)
 
 int mlevk_worker(void)
 {
-    rt_thread_t mlevk_thread = rt_thread_create("mlevk",
-                               mlevk_entry,
-                               RT_NULL,
-                               THREAD_STACK_SIZE,
-                               THREAD_PRIORITY,
-                               THREAD_TIMESLICE);
+#define MLEVK_THREAD_PRIORITY   20
+#define MLEVK_THREAD_STACK_SIZE 8192
+#define MLEVK_THREAD_TIMESLICE  5
 
-    if (mlevk_thread != RT_NULL)
-        rt_thread_startup(mlevk_thread);
+    static struct rt_thread *psMLEVKThread = RT_NULL;
+    static void *pvMLEVKThreadStack = RT_NULL;
+
+    if (!psMLEVKThread)
+    {
+        psMLEVKThread = (struct rt_thread *)rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_DTCM), sizeof(struct rt_thread));
+    }
+
+    if (!pvMLEVKThreadStack)
+    {
+        pvMLEVKThreadStack = rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_DTCM), MLEVK_THREAD_STACK_SIZE);
+    }
+
+    rt_kprintf("MLEVK (Thread@%08x, %d), (Stack@%08x, %d)\n",
+               psMLEVKThread,
+               sizeof(struct rt_thread),
+               pvMLEVKThreadStack,
+               MLEVK_THREAD_STACK_SIZE);
+
+    if (psMLEVKThread && pvMLEVKThreadStack)
+    {
+        rt_err_t ret = rt_thread_init(
+                           psMLEVKThread,
+                           "mlevk",
+                           mlevk_entry,
+                           RT_NULL,
+                           pvMLEVKThreadStack,
+                           MLEVK_THREAD_STACK_SIZE,
+                           MLEVK_THREAD_PRIORITY,
+                           MLEVK_THREAD_TIMESLICE);
+        if (ret == RT_EOK)
+        {
+            rt_thread_startup(psMLEVKThread);
+        }
+        else
+        {
+            goto exit_mlevk_worker;
+        }
+    }
+    else
+    {
+        goto exit_mlevk_worker;
+    }
 
     return 0;
+
+exit_mlevk_worker:
+
+    if (psMLEVKThread)
+    {
+        rt_memheap_free(psMLEVKThread);
+    }
+    if (pvMLEVKThreadStack)
+    {
+        rt_memheap_free(pvMLEVKThreadStack);
+    }
+
+    return -1;
 }
 INIT_APP_EXPORT(mlevk_worker);
 
