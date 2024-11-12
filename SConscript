@@ -629,6 +629,7 @@ mlevk_INCS = [
     mlevk_source_cwd + '/hal/source/components/audio/include',
     mlevk_source_cwd + '/hal/source/components/ext_file/include',
     mlevk_source_cwd + '/hal/source/components/memheap_helper/include',
+    mlevk_source_cwd + '/hal/source/components/poster/include',
     mlevk_source_cwd + '/hal/source/components/stdout/include',
     mlevk_source_cwd + '/hal/source/components/npu/include',
     mlevk_source_cwd + '/log/include/',
@@ -650,6 +651,8 @@ source/hal/source/components/camera/source/camera_img.c
 source/hal/source/components/audio/source/audio_helper.c
 source/hal/source/components/ext_file/source/ext_file.c
 source/hal/source/components/memheap_helper/source/memheap_helper.c
+source/hal/source/components/poster/source/poster_helper.c
+source/hal/source/components/poster/source/mqtt_pub.c
 source/hal/source/components/npu/ethosu_impl_rtt.c
 source/hal/source/components/npu/ethosu_npu_init.c
 source/hal/source/components/npu/ethosu_profiler.c
@@ -734,10 +737,13 @@ LOCAL_CXXFLAGS = LOCAL_CXXFLAGS + MLEVK_FLAGS
 
 group = group + DefineGroup('MLEVK', src, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = inc, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
+
+print(cwd)
 list = os.listdir(cwd)
 for d in list:
     path = os.path.join(cwd, d)
     if os.path.isfile(os.path.join(path, 'SConscript')):
+        print(os.path.join(d, 'SConscript'))
         group = group + SConscript(os.path.join(d, 'SConscript'))
 
 Return('group')

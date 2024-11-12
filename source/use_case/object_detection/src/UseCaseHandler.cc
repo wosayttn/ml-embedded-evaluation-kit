@@ -296,15 +296,17 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 
     while (1)
     {
-        /* Ensure there are no results leftover from previous inference when running all. */
-        results.clear();
-
         hal_camera_sync();
         const uint8_t *PktImage = hal_camera_get_frame(0);
         if (PktImage == NULL)
         {
             printf_err("Sync pkt frame failed.");
             break;
+        }
+
+        if (results.size() > 0)
+        {
+            PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
         }
 
 #if (TC8263==1)
@@ -316,7 +318,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             break;
         }
 #endif
-
         const size_t copySz = inputImgRows * inputImgCols;
 
         /* Run the pre-processing, inference and post-processing. */
@@ -328,6 +329,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 
         hal_camera_oneshot();
 
+
 #if (TC8263==1)
         /* Display packet image on the LCD. Y-only */
         hal_lcd_display_image(
@@ -338,6 +340,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             dataPsnImgStartX, //(480 / 2) + dataPsnImgStartX,
             dataPsnImgStartY,
             dataPsnImgDownscaleFactor);
+
 #else
         /* Display planner image on the LCD. YUV420P, Only-Y */
         hal_lcd_display_image(
@@ -349,6 +352,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             dataPsnImgStartY,
             dataPsnImgDownscaleFactor);
 #endif
+        /* Ensure there are no results leftover from previous inference when running all. */
+        results.clear();
 
         if (!RunInference(model, profiler))
         {
@@ -392,6 +397,24 @@ PresentInferenceResult(const std::vector<object_detection::DetectionResult> &res
     info("Final results:\n");
     info("Total number of inferences: 1\n");
 
+    for (uint32_t i = 0; i < results.size(); ++i)
+    {
+        info("%" PRIu32 ") (%f) -> %s {x=%d,y=%d,w=%d,h=%d}\n",
+             i,
+             results[i].m_normalisedVal,
+             "Detection box:",
+             results[i].m_x0,
+             results[i].m_y0,
+             results[i].m_w,
+             results[i].m_h);
+    }
+
+    return true;
+}
+
+static bool
+PresentInferenceResultMqtt(const std::vector<object_detection::DetectionResult> &results)
+{
     for (uint32_t i = 0; i < results.size(); ++i)
     {
         info("%" PRIu32 ") (%f) -> %s {x=%d,y=%d,w=%d,h=%d}\n",

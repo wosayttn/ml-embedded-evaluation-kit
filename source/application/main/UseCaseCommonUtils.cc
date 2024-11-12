@@ -160,6 +160,25 @@ bool LoadLabelsVector(std::vector<std::string> &labels, void *pvLabelsBuffAddr, 
     return true;
 }
 
+bool PosterNotify(arm::app::ApplicationContext &ctx, const uint8_t *data, const uint32_t width,
+                      const uint32_t height, const uint32_t channels)
+{
+    S_JPEG_CONTEXT sJpegCtx =
+    {
+        .pu8SrcImgBuf = (uint8_t *)data,
+        .u32ImgWidth = (uint32_t)width,
+        .u32ImgHeight = (uint32_t)height,
+        .u32NumComponents = (uint32_t)channels,
+        .u32Quality = (uint32_t)1,
+    };
+
+    if (hal_poster_mqtt(&sJpegCtx) < 0)
+        return false;
+
+    return true;
+}
+
+
 namespace arm
 {
 namespace app

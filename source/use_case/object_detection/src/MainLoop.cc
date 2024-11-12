@@ -22,6 +22,9 @@
 #include "log_macros.h"             /* Logging functions */
 #include "BufAttributes.hpp"        /* Buffer attributes to be applied */
 
+#undef ACTIVATION_BUF_SZ
+#define ACTIVATION_BUF_SZ       (444000)
+
 namespace arm
 {
 namespace app

@@ -75,7 +75,7 @@ void mlevk_entry(void *p)
 int mlevk_worker(void)
 {
 #define MLEVK_THREAD_PRIORITY   20
-#define MLEVK_THREAD_STACK_SIZE 8192
+#define MLEVK_THREAD_STACK_SIZE (8192*2)
 #define MLEVK_THREAD_TIMESLICE  5
 
     static struct rt_thread *psMLEVKThread = RT_NULL;
