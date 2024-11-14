@@ -294,9 +294,13 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     }
 #endif
 
+    const size_t copySz = inputImgRows * inputImgCols;
     while (1)
     {
+        /* Sync a frame. */
         hal_camera_sync();
+
+        /* Get packet buffer. */
         const uint8_t *PktImage = hal_camera_get_frame(0);
         if (PktImage == NULL)
         {
@@ -304,21 +308,32 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             break;
         }
 
-        if (results.size() > 0)
-        {
-            PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
-        }
-
-#if (TC8263==1)
-#else
-        const uint8_t *PlaImage = hal_camera_sync_frame(1);
+#if (TC8263!=1)
+        /* Get planar buffer. */
+        const uint8_t *PlaImage = hal_camera_get_frame(1);
         if (PlaImage == NULL)
         {
             printf_err("Sync pla frame failed.");
             break;
         }
 #endif
-        const size_t copySz = inputImgRows * inputImgCols;
+
+        /* One-shutter new frame. */
+        hal_camera_oneshot();
+
+        /* Display image on the LCD. */
+        hal_lcd_display_image(
+#if (TC8263==1)
+            PktImage,
+#else
+            PlaImage,
+#endif
+            inputImgCols,
+            inputImgRows,
+            1,
+            dataPsnImgStartX,
+            dataPsnImgStartY,
+            dataPsnImgDownscaleFactor);
 
         /* Run the pre-processing, inference and post-processing. */
         if (!preProcess.DoPreProcess(PktImage, copySz))
@@ -327,31 +342,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             break;
         }
 
-        hal_camera_oneshot();
-
-
-#if (TC8263==1)
-        /* Display packet image on the LCD. Y-only */
-        hal_lcd_display_image(
-            PktImage,
-            inputImgCols,
-            inputImgRows,
-            1,
-            dataPsnImgStartX, //(480 / 2) + dataPsnImgStartX,
-            dataPsnImgStartY,
-            dataPsnImgDownscaleFactor);
-
-#else
-        /* Display planner image on the LCD. YUV420P, Only-Y */
-        hal_lcd_display_image(
-            PlaImage,
-            inputImgCols,
-            inputImgRows,
-            1,
-            dataPsnImgStartX,
-            dataPsnImgStartY,
-            dataPsnImgDownscaleFactor);
-#endif
         /* Ensure there are no results leftover from previous inference when running all. */
         results.clear();
 
@@ -367,21 +357,21 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             break;
         }
 
-        /* Draw boxes. */
-        DrawDetectionBoxes(
-            results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
+        /* Execute poster mission. JPEG encoding -> Base64 transcoding -> MQTT publish image. */
+        if (results.size() > 0)
+        {
+#if (TC8263==1)
+            // Only Y
+            PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
+#else
+            // YUV422
+            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
+#endif
 
-#if VERIFY_TEST_OUTPUT
-        DumpTensor(outputTensor0);
-        DumpTensor(outputTensor1);
-#endif /* VERIFY_TEST_OUTPUT */
-
-        //if (!PresentInferenceResult(results))
-        //{
-        //    break;
-        //}
-
-        //profiler.PrintProfilingResult();
+            /* Draw boxes. */
+            DrawDetectionBoxes(
+                results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
+        }
 
     } // while(1)
 

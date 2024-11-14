@@ -631,11 +631,11 @@ int mqtt_pub_image(uint8_t *buf, uint32_t len)
         RyanMqttError_e ret = RyanMqttPublish(client, MQTT_PUBTOPIC, buf, len, 1, 0);
         if (RyanMqttSuccessError != ret)
         {
-            rt_kprintf("%s\n", RyanMqttStrError(ret));
+            rt_kprintf("Error: %d(%s)\n", ret, RyanMqttStrError(ret));
         }
         else
         {
-            rt_kprintf("Published image.(%d Bytes)\n", len);
+            rt_kprintf("Publish %d Bytes\n", len);
         }
 
         return (RyanMqttSuccessError == ret) ? 0 : -1;

@@ -204,9 +204,9 @@ RyanMqttBool_e RyanMqttMatchTopic(const char *topic,
                 // 此检查处理将筛选器"sport/#"与主题"sport"匹配的情况。
                 // 原因是"#"通配符表示主题名称中的父级和任意数量的子级。
                 if ((topicFilterLength >= 3U) &&
-                    (topicFilterIndex == (topicFilterLength - 3U)) &&
-                    (topicFilter[topicFilterIndex + 1U] == '/') &&
-                    (topicFilter[topicFilterIndex + 2U] == '#'))
+                        (topicFilterIndex == (topicFilterLength - 3U)) &&
+                        (topicFilter[topicFilterIndex + 1U] == '/') &&
+                        (topicFilter[topicFilterIndex + 2U] == '#'))
                     matchFound = RyanMqttTrue;
 
                 // 检查下一个字符是否为"#"或"+"，主题过滤器以"/#"或"/+"结尾。
@@ -214,7 +214,7 @@ RyanMqttBool_e RyanMqttMatchTopic(const char *topic,
                 // -主题过滤器"sport/+"与主题"sport/"。
                 // -主题过滤器"sport/#"，主题为"sport/"。
                 if ((topicFilterIndex == (topicFilterLength - 2U)) &&
-                    (topicFilter[topicFilterIndex] == '/'))
+                        (topicFilter[topicFilterIndex] == '/'))
                     // 检查最后一个字符是否为通配符
                     matchFound = (RyanMqttBool_e)((topicFilter[topicFilterIndex + 1U] == '+') || (topicFilter[topicFilterIndex + 1U] == '#'));
             }
@@ -247,12 +247,12 @@ RyanMqttBool_e RyanMqttMatchTopic(const char *topic,
 
                 // 确定主题过滤器是否包含在由"+"通配符表示的当前级别之后的子级别。
                 if ((topicFilterIndex < (topicFilterLength - 1U)) &&
-                    (topicFilter[topicFilterIndex + 1U] == '/'))
+                        (topicFilter[topicFilterIndex + 1U] == '/'))
                     nextLevelExistsinTopicFilter = RyanMqttTrue;
 
                 // 如果主题名称包含子级别但主题过滤器在当前级别结束，则不存在匹配项。
                 if ((nextLevelExistsInTopicName == RyanMqttTrue) &&
-                    (nextLevelExistsinTopicFilter == RyanMqttFalse))
+                        (nextLevelExistsinTopicFilter == RyanMqttFalse))
                 {
                     matchFound = RyanMqttFalse;
                     shouldStopMatching = RyanMqttTrue;
@@ -362,7 +362,7 @@ void RyanMqttMsgHandlerDestory(RyanMqttMsgHandler_t *msgHandler)
 RyanMqttError_e RyanMqttMsgHandlerFind(RyanMqttClient_t *client, char *topic, uint16_t topicLen, RyanMqttBool_e topicMatchedFlag, RyanMqttMsgHandler_t **pMsgHandler)
 {
     RyanList_t *curr = NULL,
-               *next = NULL;
+                *next = NULL;
     RyanMqttMsgHandler_t *msgHandler = NULL;
 
     RyanMqttAssert(NULL != client);
@@ -590,7 +590,7 @@ RyanMqttError_e RyanMqttAckListRemove(RyanMqttClient_t *client, RyanMqttAckHandl
 void RyanMqttCleanSession(RyanMqttClient_t *client)
 {
     RyanList_t *curr = NULL,
-               *next = NULL;
+                *next = NULL;
     RyanMqttAckHandler_t *ackHandler = NULL;
     RyanMqttMsgHandler_t *msgHandler = NULL;
     RyanMqttAssert(NULL != client);
@@ -629,113 +629,120 @@ const char *RyanMqttStrError(RyanMqttError_e state)
     switch ((int)state)
     {
     case RyanMqttRecvPacketTimeOutError:
-    str = "Read data timeout";
-    break;
+        str = "Read data timeout";
+        break;
 
-case RyanMqttParamInvalidError:
-    str = "Invalid parameter";
-    break;
+    case RyanMqttSendPacketTimeOutError:
+        str = "Write data timeout";
+        break;
 
-case RyanSocketFailedError:
-    str = "Socket failed";
-    break;
+    case RyanMqttParamInvalidError:
+        str = "Invalid parameter";
+        break;
 
-case RyanMqttSendPacketError:
-    str = "Failed to send packet";
-    break;
+    case RyanSocketFailedError:
+        str = "Socket failed";
+        break;
 
-case RyanMqttSerializePacketError:
-    str = "Failed to serialize packet";
-    break;
+    case RyanMqttSendPacketError:
+        str = "Failed to send packet";
+        break;
 
-case RyanMqttDeserializePacketError:
-    str = "Failed to deserialize packet";
-    break;
+    case RyanMqttSerializePacketError:
+        str = "Failed to serialize packet";
+        break;
 
-case RyanMqttNoRescourceError:
-    str = "No resource";
-    break;
+    case RyanMqttDeserializePacketError:
+        str = "Failed to deserialize packet";
+        break;
 
-case RyanMqttHaveRescourceError:
-    str = "Resource already exists";
-    break;
+    case RyanMqttNoRescourceError:
+        str = "No resource";
+        break;
 
-case RyanMqttNotConnectError:
-    str = "mqttClient is not connected";
-    break;
+    case RyanMqttHaveRescourceError:
+        str = "Resource already exists";
+        break;
 
-case RyanMqttConnectError:
-    str = "mqttClient is already connected";
-    break;
+    case RyanMqttNotConnectError:
+        str = "mqttClient is not connected";
+        break;
 
-case RyanMqttRecvBufToShortError:
-    str = "Receive buffer is insufficient";
-    break;
+    case RyanMqttConnectError:
+        str = "mqttClient is already connected";
+        break;
 
-case RyanMqttSendBufToShortError:
-    str = "Send buffer is insufficient";
-    break;
+    case RyanMqttRecvBufToShortError:
+        str = "Receive buffer is insufficient";
+        break;
 
-case RyanMqttSocketConnectFailError:
-    str = "Socket connection failed";
-    break;
+    case RyanMqttSendBufToShortError:
+        str = "Send buffer is insufficient";
+        break;
 
-case RyanMqttNotEnoughMemError:
-    str = "Insufficient dynamic memory";
-    break;
+    case RyanMqttSocketConnectFailError:
+        str = "Socket connection failed";
+        break;
 
-case RyanMqttFailedError:
-    str = "MQTT failed, see detailed information inside the function";
-    break;
+    case RyanMqttNotEnoughMemError:
+        str = "Insufficient dynamic memory";
+        break;
 
-case RyanMqttSuccessError:
-    str = "MQTT success, see detailed information inside the function";
-    break;
+    case RyanMqttFailedError:
+        str = "MQTT failed, see detailed information inside the function";
+        break;
 
-case RyanMqttConnectRefusedProtocolVersion:
-    str = "MQTT disconnected, server does not support the MQTT protocol level requested by the client";
-    break;
+    case RyanMqttSuccessError:
+        str = "MQTT success, see detailed information inside the function";
+        break;
 
-case RyanMqttConnectRefusedIdentifier:
-    str = "MQTT disconnected, invalid client identifier";
-    break;
+    case RyanMqttConnectRefusedProtocolVersion:
+        str = "MQTT disconnected, server does not support the MQTT protocol level requested by the client";
+        break;
 
-case RyanMqttConnectRefusedServer:
-    str = "MQTT disconnected, server unavailable";
-    break;
+    case RyanMqttConnectRefusedIdentifier:
+        str = "MQTT disconnected, invalid client identifier";
+        break;
 
-case RyanMqttConnectRefusedUsernamePass:
-    str = "MQTT disconnected, invalid username or password";
-    break;
+    case RyanMqttConnectRefusedServer:
+        str = "MQTT disconnected, server unavailable";
+        break;
 
-case RyanMqttConnectRefusedNotAuthorized:
-    str = "MQTT disconnected, connection refused, not authorized";
-    break;
+    case RyanMqttConnectRefusedUsernamePass:
+        str = "MQTT disconnected, invalid username or password";
+        break;
 
-case RyanMqttConnectClientInvalid:
-    str = "MQTT disconnected, client is in an invalid state";
-    break;
+    case RyanMqttConnectRefusedNotAuthorized:
+        str = "MQTT disconnected, connection refused, not authorized";
+        break;
 
-case RyanMqttConnectNetWorkFail:
-    str = "MQTT disconnected, network error";
-    break;
+    case RyanMqttConnectClientInvalid:
+        str = "MQTT disconnected, client is in an invalid state";
+        break;
 
-case RyanMqttConnectDisconnected:
-    str = "MQTT disconnected, MQTT client disconnected";
-    break;
+    case RyanMqttConnectNetWorkFail:
+        str = "MQTT disconnected, network error";
+        break;
 
-case RyanMqttKeepaliveTimeout:
-    str = "MQTT disconnected, connection timeout due to heartbeat timeout";
-    break;
+    case RyanMqttConnectDisconnected:
+        str = "MQTT disconnected, MQTT client disconnected";
+        break;
 
-case RyanMqttConnectUserDisconnected:
-    str = "MQTT disconnected, user manually disconnected";
-    break;
+    case RyanMqttKeepaliveTimeout:
+        str = "MQTT disconnected, connection timeout due to heartbeat timeout";
+        break;
 
-case RyanMqttConnectTimeout:
-    str = "MQTT disconnected, connection timeout during connect";
-    break;
+    case RyanMqttConnectUserDisconnected:
+        str = "MQTT disconnected, user manually disconnected";
+        break;
 
+    case RyanMqttConnectTimeout:
+        str = "MQTT disconnected, connection timeout during connect";
+        break;
+
+    default:
+        str = "Unknown";
+        break;
     }
 
     return str;

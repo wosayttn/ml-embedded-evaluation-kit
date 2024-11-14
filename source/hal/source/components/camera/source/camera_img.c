@@ -31,11 +31,14 @@
 #define THREAD_TIMESLICE  5
 
 //#define DEF_CROP_PACKET_RECT
-//#define DEF_SWITCH_BASE_ADDR_ISR
 //#define DEF_FRAMERATE_DIV2
 
 #define DEF_DURATION            10
 #define DEF_ONE_SHOT            1
+#define DEF_BUFFER_NUM          2
+#if (DEF_BUFFER_NUM > 1)
+    #define DEF_SWITCH_BASE_ADDR_ISR
+#endif
 
 typedef struct
 {
@@ -70,6 +73,70 @@ static ccap_grabber_param s_GrabberParam =
 };
 
 static ccap_grabber_context sGrabberContext;
+
+static uint32_t ccap_get_fmt_bpp(uint32_t u32PixFmt)
+{
+    switch (u32PixFmt)
+    {
+    case CCAP_PAR_OUTFMT_ONLY_Y:
+        return 1;
+
+    case CCAP_PAR_PLNFMT_YUV422:
+    //case CCAP_PAR_OUTFMT_YUV422:
+    case CCAP_PAR_PLNFMT_YUV420:
+    case CCAP_PAR_OUTFMT_RGB555:
+    case CCAP_PAR_OUTFMT_RGB565:
+        return 2;
+
+    case CCAP_PAR_OUTFMT_BGR888_I8:
+    case CCAP_PAR_OUTFMT_RGB888_I8:
+    case CCAP_PAR_OUTFMT_BGR888_U8:
+    case CCAP_PAR_OUTFMT_RGB888_U8:
+        return 3;
+
+    case CCAP_PAR_OUTFMT_ARGB888_I8:
+    case CCAP_PAR_OUTFMT_BGRA888_I8:
+    case CCAP_PAR_OUTFMT_ARGB888_U8:
+    case CCAP_PAR_OUTFMT_BGRA888_U8:
+        return 4;
+
+    default:
+        return 0;
+    }
+
+    return 0;
+}
+
+static uint32_t calculate_buffer_size(ccap_view_info *psViewInfo)
+{
+    return psViewInfo->u32Width *
+           psViewInfo->u32Height *
+           ccap_get_fmt_bpp(psViewInfo->u32PixFmt);
+}
+
+static void switch_framebuffers(ccap_grabber_context_t psGrabberContext)
+{
+    ccap_config sCcapConfig = {0};
+
+    if (psGrabberContext->sCcapConfig.sPipeInfo_Packet.pu8FarmAddr)
+    {
+        sCcapConfig.sPipeInfo_Packet.pu8FarmAddr =
+            psGrabberContext->sCcapConfig.sPipeInfo_Packet.pu8FarmAddr +
+            ((psGrabberContext->u32ISRFrameEnd + 1) % DEF_BUFFER_NUM) *
+            calculate_buffer_size(&psGrabberContext->sCcapConfig.sPipeInfo_Packet) ;
+    }
+
+    if (psGrabberContext->sCcapConfig.sPipeInfo_Planar.pu8FarmAddr)
+    {
+        sCcapConfig.sPipeInfo_Planar.pu8FarmAddr =
+            psGrabberContext->sCcapConfig.sPipeInfo_Planar.pu8FarmAddr +
+            ((psGrabberContext->u32ISRFrameEnd + 1) % DEF_BUFFER_NUM) *
+            calculate_buffer_size(&psGrabberContext->sCcapConfig.sPipeInfo_Planar) ;
+    }
+
+    /* Switch next frambuffer/ */
+    rt_device_control(psGrabberContext->psDevCcap, CCAP_CMD_SET_BASEADDR, &sCcapConfig);
+}
 
 static void nu_ccap_event_hook(void *pvData, uint32_t u32EvtMask)
 {
@@ -118,48 +185,6 @@ static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
     }
 }
 
-#define CCAP_PAR_OUTFMT_RGB888_U8       ((1 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_BGR888_U8       ((0 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_ARGB888_U8      ((3 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_BGRA888_U8      ((2 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x0ul << CCAP_PAR_OUTFMT_Pos))
-/*!< CCAP PAR/PARM setting for Image Data RGB888 INT8  Format Output to System Memory                \hideinitializer */
-#define CCAP_PAR_OUTFMT_RGB888_I8       ((1 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_BGR888_I8       ((0 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_ARGB888_I8      ((3 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
-#define CCAP_PAR_OUTFMT_BGRA888_I8      ((2 << CCAP_PARM_RGB888OUTORD_Pos) | CCAP_PARM_OUTFMTH_Msk | (0x1ul << CCAP_PAR_OUTFMT_Pos))
-
-static uint32_t ccap_get_fmt_bpp(uint32_t u32PixFmt)
-{
-    switch (u32PixFmt)
-    {
-    case CCAP_PAR_OUTFMT_ONLY_Y:
-        return 1;
-
-    case CCAP_PAR_PLNFMT_YUV422:
-    //case CCAP_PAR_OUTFMT_YUV422:
-    case CCAP_PAR_PLNFMT_YUV420:
-    case CCAP_PAR_OUTFMT_RGB555:
-    case CCAP_PAR_OUTFMT_RGB565:
-        return 2;
-
-    case CCAP_PAR_OUTFMT_BGR888_I8:
-    case CCAP_PAR_OUTFMT_RGB888_I8:
-    case CCAP_PAR_OUTFMT_BGR888_U8:
-    case CCAP_PAR_OUTFMT_RGB888_U8:
-        return 3;
-
-    case CCAP_PAR_OUTFMT_ARGB888_I8:
-    case CCAP_PAR_OUTFMT_BGRA888_I8:
-    case CCAP_PAR_OUTFMT_ARGB888_U8:
-    case CCAP_PAR_OUTFMT_BGRA888_U8:
-        return 4;
-
-    default:
-        return 0;
-    }
-
-    return 0;
-}
 
 static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, ccap_grabber_param_t psGrabberParam)
 {
@@ -194,7 +219,8 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
         {
             uint32_t u32Sz = psCcapConfig->sPipeInfo_Packet.u32Width *
                              psCcapConfig->sPipeInfo_Packet.u32Height *
-                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Packet.u32PixFmt);
+                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Packet.u32PixFmt) *
+                             DEF_BUFFER_NUM;
 
             // Allocate memory.
             psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
@@ -223,7 +249,8 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
         {
             uint32_t u32Sz = psCcapConfig->sPipeInfo_Planar.u32Width *
                              psCcapConfig->sPipeInfo_Planar.u32Height *
-                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Planar.u32PixFmt);
+                             ccap_get_fmt_bpp(psCcapConfig->sPipeInfo_Planar.u32PixFmt) *
+                             DEF_BUFFER_NUM;
 
             // Allocate memory.
             psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
@@ -234,7 +261,6 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
                 psCcapConfig->sPipeInfo_Planar.u32PixFmt = 0;
                 psCcapConfig->u32Stride_Planar           = 0;
             }
-
         }
 
         LOG_I("Planar.FarmAddr@0x%08X", psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
@@ -508,19 +534,28 @@ int camera_init(ccap_view_info_t psViewInfo_Packet, ccap_view_info_t psViewInfo_
 const uint8_t *camera_get_frame(int pipe)
 {
     ccap_config_t psCcapConfig = &sGrabberContext.sCcapConfig;
+    const uint8_t *pu8BufAddr = NULL;
 
-    if (pipe == 0)
+    if (pipe == 0) /* For packet */
     {
         if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
-            return (const uint8_t *)psCcapConfig->sPipeInfo_Packet.pu8FarmAddr;
+        {
+            pu8BufAddr = (const uint8_t *)psCcapConfig->sPipeInfo_Packet.pu8FarmAddr +
+                         calculate_buffer_size(&psCcapConfig->sPipeInfo_Packet) *
+                         ((sGrabberContext.u32ISRFrameEnd - 1) % DEF_BUFFER_NUM);
+        }
     }
-    else if (pipe == 1)
+    else if (pipe == 1)  /* For planar */
     {
         if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
-            return (const uint8_t *)psCcapConfig->sPipeInfo_Planar.pu8FarmAddr;
+        {
+            pu8BufAddr = (const uint8_t *)psCcapConfig->sPipeInfo_Planar.pu8FarmAddr +
+                         calculate_buffer_size(&psCcapConfig->sPipeInfo_Planar) *
+                         ((sGrabberContext.u32ISRFrameEnd - 1) % DEF_BUFFER_NUM);
+        }
     }
 
-    return NULL;
+    return pu8BufAddr;
 }
 
 int camera_sync(void)
@@ -540,6 +575,7 @@ int camera_oneshot(void)
 {
 #if DEF_ONE_SHOT
     int OpModeShutter = 1;
+
     /* One-shot mode, trigger next frame */
     rt_device_control(sGrabberContext.psDevCcap, CCAP_CMD_SET_OPMODE, &OpModeShutter);
 #endif

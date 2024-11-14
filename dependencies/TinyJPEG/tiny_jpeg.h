@@ -193,7 +193,7 @@ int tje_encode_with_func(tje_write_func *func,
 #include <stdio.h>  // FILE, puts
 #include <string.h> // memcpy
 
-#define TJEI_BUFFER_SIZE 4096
+#define TJEI_BUFFER_SIZE 1024
 
 #ifdef _WIN32
 
