@@ -7,7 +7,7 @@
  * @param size
  * @return void*
  */
-void *platformMemoryMalloc(size_t size)
+inline void *platformMemoryMalloc(size_t size)
 {
     return rt_malloc(size);
 }
@@ -17,7 +17,7 @@ void *platformMemoryMalloc(size_t size)
  *
  * @param ptr
  */
-void platformMemoryFree(void *ptr)
+inline void platformMemoryFree(void *ptr)
 {
     rt_free(ptr);
 }
@@ -27,7 +27,7 @@ void platformMemoryFree(void *ptr)
  *
  * @param ms
  */
-void platformDelay(uint32_t ms)
+inline void platformDelay(uint32_t ms)
 {
     rt_thread_mdelay(ms);
 }
@@ -38,7 +38,7 @@ void platformDelay(uint32_t ms)
  * @param str
  * @param strLen
  */
-void platformPrint(char *str, uint16_t strLen)
+inline void platformPrint(char *str, uint16_t strLen)
 {
     rt_kprintf("%.*s", strLen, str);
 }
@@ -64,11 +64,11 @@ RyanMqttError_e platformThreadInit(void *userData,
                                    uint32_t priority)
 {
     platformThread->thread = rt_thread_create(name,      // 线程name
-                                              entry,     // 线程入口函数
-                                              param,     // 线程入口函数参数
-                                              stackSize, // 线程栈大小
-                                              priority,  // 线程优先级
-                                              10);       // 线程时间片
+                             entry,     // 线程入口函数
+                             param,     // 线程入口函数参数
+                             stackSize, // 线程栈大小
+                             priority,  // 线程优先级
+                             10);       // 线程时间片
 
     if (NULL == platformThread->thread)
         return RyanMqttNoRescourceError;
@@ -172,19 +172,51 @@ RyanMqttError_e platformMutexUnLock(void *userData, platformMutex_t *platformMut
 }
 
 /**
- * @brief 进入临界区 / 关中断
+ * @brief 临界区初始化
  *
+ * @param userData
+ * @param platformCritical
+ * @return RyanMqttError_e
  */
-void platformCriticalEnter(void)
+RyanMqttError_e platformCriticalInit(void *userData, platformCritical_t *platformCritical)
 {
-    rt_enter_critical();
+    return RyanMqttSuccessError;
 }
 
 /**
- * @brief 退出临界区 / 开中断
+ * @brief 销毁临界区
  *
+ * @param userData
+ * @param platformCritical
+ * @return RyanMqttError_e
  */
-void platformCriticalExit(void)
+RyanMqttError_e platformCriticalDestroy(void *userData, platformCritical_t *platformCritical)
+{
+    return RyanMqttSuccessError;
+}
+
+/**
+ * @brief 进入临界区
+ *
+ * @param userData
+ * @param platformCritical
+ * @return RyanMqttError_e
+ */
+inline RyanMqttError_e platformCriticalEnter(void *userData, platformCritical_t *platformCritical)
+{
+    rt_enter_critical();
+    return RyanMqttSuccessError;
+}
+
+/**
+ * @brief 退出临界区
+ *
+ * @param userData
+ * @param platformCritical
+ * @return RyanMqttError_e
+ */
+inline RyanMqttError_e platformCriticalExit(void *userData, platformCritical_t *platformCritical)
 {
     rt_exit_critical();
+    return RyanMqttSuccessError;
 }

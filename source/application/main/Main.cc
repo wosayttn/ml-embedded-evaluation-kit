@@ -40,7 +40,7 @@ static void print_application_intro()
     info("Copyright 2021-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>\n\n");
 }
 
-int mlevk_go(void)
+void mlevk_entry(void *p)
 {
     if (hal_platform_init())
     {
@@ -59,27 +59,23 @@ int mlevk_go(void)
 
     /* Release platform. */
     hal_platform_release();
-
-    return 0;
-}
-MSH_CMD_EXPORT(mlevk_go, Start MLEVK);
-
-
-#if defined(MLEVK_UC_LIVE_DEMO)
-
-void mlevk_entry(void *p)
-{
-    mlevk_go();
 }
 
-int mlevk_worker(void)
+int mlevk_go(void)
 {
-#define MLEVK_THREAD_PRIORITY   20
-#define MLEVK_THREAD_STACK_SIZE (8192*2)
+#define MLEVK_THREAD_PRIORITY   25
+#define MLEVK_THREAD_STACK_SIZE (8192)
 #define MLEVK_THREAD_TIMESLICE  5
 
     static struct rt_thread *psMLEVKThread = RT_NULL;
     static void *pvMLEVKThreadStack = RT_NULL;
+
+    rt_thread_t threadCxt ;
+
+    if ((threadCxt = rt_thread_find((char *)"mlevk")) != RT_NULL)
+    {
+        info("mlevk thread running");
+    }
 
     if (!psMLEVKThread)
     {
@@ -91,11 +87,11 @@ int mlevk_worker(void)
         pvMLEVKThreadStack = rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_DTCM), MLEVK_THREAD_STACK_SIZE);
     }
 
-    rt_kprintf("MLEVK (Thread@%08x, %d), (Stack@%08x, %d)\n",
-               psMLEVKThread,
-               sizeof(struct rt_thread),
-               pvMLEVKThreadStack,
-               MLEVK_THREAD_STACK_SIZE);
+    info("mlevk (Thread@%08x, %d), (Stack@%08x, %d)",
+         psMLEVKThread,
+         sizeof(struct rt_thread),
+         pvMLEVKThreadStack,
+         MLEVK_THREAD_STACK_SIZE);
 
     if (psMLEVKThread && pvMLEVKThreadStack)
     {
@@ -129,15 +125,15 @@ exit_mlevk_worker:
     if (psMLEVKThread)
     {
         rt_memheap_free(psMLEVKThread);
+        psMLEVKThread = RT_NULL;
     }
     if (pvMLEVKThreadStack)
     {
         rt_memheap_free(pvMLEVKThreadStack);
+        pvMLEVKThreadStack = RT_NULL;
     }
 
     return -1;
 }
-INIT_APP_EXPORT(mlevk_worker);
-
-#endif
-
+INIT_APP_EXPORT(mlevk_go);
+MSH_CMD_EXPORT(mlevk_go, Start MLEVK);

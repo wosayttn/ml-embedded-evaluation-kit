@@ -36,12 +36,10 @@
 
 static const char *b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static struct rt_work   s_workPubMsg = {0};
-static uint8_t *s_pu8TmpBuf = RT_NULL;
 static uint8_t *s_pu8JpegBitStreamBuf = RT_NULL;
 static uint8_t *s_pu8JpegBitStreamB64Buf = RT_NULL;
 
 static uint32_t s_u32JpegWroteSize = 0;
-static S_JPEG_CONTEXT s_sJpegECtx = {0};
 
 static uint8_t *b64_encode(uint8_t *pu8DstBuf, const uint8_t *pu8SrcBuf, uint32_t u32InLen)
 {
@@ -90,16 +88,6 @@ static void jpeg_write_func(void *context, void *data, int size)
 
 static void poster_mqtt_func(struct rt_work *work, void *work_data)
 {
-    /* Do JPEG encoding. */
-    s_u32JpegWroteSize = 0;
-    tje_encode_with_func(jpeg_write_func,
-                         (void *)&s_u32JpegWroteSize,
-                         s_sJpegECtx.u32Quality,
-                         s_sJpegECtx.u32ImgWidth,
-                         s_sJpegECtx.u32ImgHeight,
-                         s_sJpegECtx.u32NumComponents,
-                         (const unsigned char *)s_sJpegECtx.pu8SrcImgBuf);
-
     /* Transcode to base64 encoding for MQTT image. */
     b64_encode(s_pu8JpegBitStreamB64Buf, (const uint8_t *)s_pu8JpegBitStreamBuf, s_u32JpegWroteSize);
 
@@ -117,9 +105,15 @@ int poster_mqtt(S_JPEG_CONTEXT *psJpegECtx)
     {
         if (psJpegECtx && psJpegECtx->pu8SrcImgBuf)
         {
-            memcpy(&s_sJpegECtx, psJpegECtx, sizeof(S_JPEG_CONTEXT));
-            memcpy(s_pu8TmpBuf, psJpegECtx->pu8SrcImgBuf, psJpegECtx->u32ImgWidth * psJpegECtx->u32ImgHeight * psJpegECtx->u32NumComponents);
-            s_sJpegECtx.pu8SrcImgBuf = s_pu8TmpBuf;
+            /* Do JPEG encoding. */
+            s_u32JpegWroteSize = 0;
+            tje_encode_with_func(jpeg_write_func,
+                                 (void *)&s_u32JpegWroteSize,
+                                 psJpegECtx->u32Quality,
+                                 psJpegECtx->u32ImgWidth,
+                                 psJpegECtx->u32ImgHeight,
+                                 psJpegECtx->u32NumComponents,
+                                 (const unsigned char *)psJpegECtx->pu8SrcImgBuf);
 
             /* Update last timestamp. */
             u32LastPoster = rt_tick_get();
@@ -133,13 +127,6 @@ int poster_mqtt(S_JPEG_CONTEXT *psJpegECtx)
 
 static int poster_mqtt_init(void)
 {
-    s_pu8TmpBuf = (uint8_t *) memheap_helper_allocate(evAREANA_AT_HYPERRAM, DEF_TMP_ENCODING_SIZE);
-    if (!s_pu8TmpBuf)
-    {
-        LOG_E("failed to allocate Base64 buffer.");
-        return -1;
-    }
-
     s_pu8JpegBitStreamBuf = (uint8_t *) memheap_helper_allocate(evAREANA_AT_HYPERRAM, DEF_JPEG_BITSTREAM_SIZE);
     if (!s_pu8JpegBitStreamBuf)
     {

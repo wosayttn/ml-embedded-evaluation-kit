@@ -3,9 +3,9 @@
 #include "rtdevice.h"
 #define RyanMqttClientId   ("NuvotonM55M1")
 #define RyanMqttHost       ("mqtt.eclipseprojects.io")
-#define RyanMqttPort       ("1883")
-#define RyanMqttUserName   ("")
-#define RyanMqttPassword   ("")
+#define RyanMqttPort       (1883)
+#define RyanMqttUserName   (NULL)
+#define RyanMqttPassword   (NULL)
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -16,10 +16,10 @@
 #include <rtdevice.h>
 #include <rtdbg.h>
 
-#define rlogEnable                0  // 是否使能日志
-#define rlogColorEnable           0  // 是否使能日志颜色
+//#define rlogEnable                 // 是否使能日志
+//#define rlogColorEnable            // 是否使能日志颜色
 #define rlogLevel (rlogLvlDebug)     // 日志打印等级
-#define rlogTag "RyanMqttTest"       // 日志tag
+#define rlogTag "mqtt_pub"           // 日志tag
 #include "RyanMqttLog.h"
 #include "RyanMqttClient.h"
 
@@ -52,7 +52,7 @@ static void printfArrStr(char *buf, uint32_t len, char *userData)
  * @param event
  * @param eventData 查看事件枚举，后面有说明eventData是什么类型
  */
-static void mqttEventHandle(void *pclient, RyanMqttEventId_e event, const void const *eventData)
+static void mqttEventHandle(void *pclient, RyanMqttEventId_e event, const void *eventData)
 {
     RyanMqttClient_t *client = (RyanMqttClient_t *)pclient;
 
@@ -108,8 +108,8 @@ static void mqttEventHandle(void *pclient, RyanMqttEventId_e event, const void c
     case RyanMqttEventData:
     {
         RyanMqttMsgData_t *msgData = (RyanMqttMsgData_t *)eventData;
-        rlog_i("接收到mqtt消息事件回调 topic: %s, packetId: %d, payload len: %d",
-               msgData->topic, msgData->packetId, msgData->payloadLen);
+        rlog_i("接收到mqtt消息事件回调 topic: %.*s, packetId: %d, payload len: %d",
+               msgData->topicLen, msgData->topic, msgData->packetId, msgData->payloadLen);
 
         rlog_i("%.*s", msgData->payloadLen, msgData->payload);
 
@@ -267,7 +267,7 @@ int MqttConnect(int argc, char *argv[])
         .recvTimeout = 5000,
         .sendTimeout = 2000,
         .ackTimeout = 10000,
-        .keepaliveTimeoutS = 3600,
+        .keepaliveTimeoutS = 120,
         .mqttEventHandle = mqttEventHandle,
         .userData = NULL
     };
@@ -580,6 +580,7 @@ static const struct RyanMqttCmdDes cmdTab[] =
 
 static int MqttHelp(int argc, char *argv[])
 {
+
     for (uint8_t i = 0; i < sizeof(cmdTab) / sizeof(cmdTab[0]); i++)
         rlog_raw("mqtt %-16s %s\r\n", cmdTab[i].cmd, cmdTab[i].explain);
 

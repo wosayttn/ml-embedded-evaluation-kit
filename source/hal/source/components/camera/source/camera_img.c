@@ -26,12 +26,10 @@
 #define DBG_COLOR
 #include <rtdbg.h>
 
-#define THREAD_PRIORITY   5
-#define THREAD_STACK_SIZE 4096
+#define THREAD_PRIORITY   10
+#define THREAD_STACK_SIZE 1024
 #define THREAD_TIMESLICE  5
 
-//#define DEF_CROP_PACKET_RECT
-//#define DEF_FRAMERATE_DIV2
 
 #define DEF_DURATION            10
 #define DEF_ONE_SHOT            1
@@ -317,40 +315,11 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
         }
     }
 
-#if defined(DEF_CROP_PACKET_RECT)
-    /* Set cropping rectangle */
-    if (psViewInfo->u32Width >= psCcapConfig->sPipeInfo_Packet.u32Width)
-    {
-        /* sensor.width >= preview.width */
-        psCcapConfig->sRectCropping.x = (psViewInfo->u32Width - psCcapConfig->sPipeInfo_Packet.u32Width) / 2;
-        psCcapConfig->sRectCropping.width  = psCcapConfig->sPipeInfo_Packet.u32Width;
-    }
-    else
-    {
-        /* sensor.width < preview.width */
-        psCcapConfig->sRectCropping.x = 0;
-        psCcapConfig->sRectCropping.width  = psViewInfo->u32Width;
-    }
-
-    if (psViewInfo->u32Height >= psCcapConfig->sPipeInfo_Packet.u32Height)
-    {
-        /* sensor.height >= preview.height */
-        psCcapConfig->sRectCropping.y = (psViewInfo->u32Height - psCcapConfig->sPipeInfo_Packet.u32Height) / 2;
-        psCcapConfig->sRectCropping.height = psCcapConfig->sPipeInfo_Packet.u32Height;
-    }
-    else
-    {
-        /* sensor.height < preview.height */
-        psCcapConfig->sRectCropping.y = 0;
-        psCcapConfig->sRectCropping.height = psViewInfo->u32Height;
-    }
-#else
     /* Set cropping rectangle */
     psCcapConfig->sRectCropping.x      = 0;
     psCcapConfig->sRectCropping.y      = 0;
     psCcapConfig->sRectCropping.width  = psViewInfo->u32Width;
     psCcapConfig->sRectCropping.height = psViewInfo->u32Height;
-#endif
 
     /* ISR Hook */
     psCcapConfig->pfnEvHndler = nu_ccap_event_hook;
@@ -434,14 +403,6 @@ static void ccap_grabber(void *parameter)
         LOG_E("Can't init %s and %s", psGrabberParam->devname_ccap, psGrabberParam->devname_sensor);
         goto exit_ccap_grabber;
     }
-
-#if defined(DEF_FRAMERATE_DIV2)
-    /* Set frame rate / 2 */
-    if (rt_device_control(psDevCcap, CCAP_CMD_SET_FRAMERATE_NM, (void *)(1 << 16 | 2)) != RT_EOK)
-    {
-        LOG_W("Can't set frame rate ", psGrabberParam->devname_ccap);
-    }
-#endif
 
     sGrabberContext.psDevCcap = psDevCcap;
 
