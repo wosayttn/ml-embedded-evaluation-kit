@@ -88,17 +88,25 @@ static void jpeg_write_func(void *context, void *data, int size)
 
 static void poster_mqtt_func(struct rt_work *work, void *work_data)
 {
+    int mqtt_pub_image(const uint8_t *buf, uint32_t len);
+
+#define CONFIG_TRANSCODE_TO_B64
+#if defined(CONFIG_TRANSCODE_TO_B64)
     /* Transcode to base64 encoding for MQTT image. */
     b64_encode(s_pu8JpegBitStreamB64Buf, (const uint8_t *)s_pu8JpegBitStreamBuf, s_u32JpegWroteSize);
 
     /* Publish the image message. */
-    int mqtt_pub_image(const uint8_t *buf, uint32_t len);
     mqtt_pub_image(s_pu8JpegBitStreamB64Buf, strlen(s_pu8JpegBitStreamB64Buf));
+#else
+
+    /* Publish the image message. */
+    mqtt_pub_image(s_pu8JpegBitStreamBuf, s_u32JpegWroteSize);
+#endif
 }
 
 int poster_mqtt(S_JPEG_CONTEXT *psJpegECtx)
 {
-#define POSTER_DELAY_TIME    2000  //ms
+#define POSTER_DELAY_TIME    3000  //ms
     static uint32_t u32LastPoster = 0;
 
     if ((POSTER_DELAY_TIME + u32LastPoster) < rt_tick_get())

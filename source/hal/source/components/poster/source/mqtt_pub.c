@@ -1,7 +1,7 @@
 #include "log_macros.h"
 #include "rtthread.h"
 #include "rtdevice.h"
-#define RyanMqttClientId   ("NuvotonM55M1")
+#define RyanMqttClientId   (NULL)
 #define RyanMqttHost       ("mqtt.eclipseprojects.io")
 #define RyanMqttPort       (1883)
 #define RyanMqttUserName   (NULL)
@@ -29,6 +29,8 @@ static RyanMqttClient_t *client = NULL;
 
 static char mqttRecvBuffer[1024];
 static char mqttSendBuffer[(32 * 1024)];
+static char mqttClientId[16];
+static char mqttImagePubTopic[32];
 
 // 具体数值计算可以查看事件回调函数
 static uint32_t mqttTest[10] = {0};
@@ -246,7 +248,7 @@ int MqttConnect(int argc, char *argv[])
     RyanMqttError_e result = RyanMqttSuccessError;
     RyanMqttClientConfig_t mqttConfig =
     {
-        .clientId = RyanMqttClientId,
+        .clientId = mqttClientId,
         .userName = RyanMqttUserName,
         .password = RyanMqttPassword,
         .host = RyanMqttHost,
@@ -272,6 +274,17 @@ int MqttConnect(int argc, char *argv[])
         .userData = NULL
     };
 
+    uint32_t uid[4] = {0};
+    uint32_t value = 0x87878787;
+
+    /* Read UID from FMC for unique ClientID address. */
+    void nu_read_uid(uint32_t *id);
+    nu_read_uid((uint32_t *)&uid);
+    value ^= (uid[0] ^ uid[1] ^ uid[2] ^ uid[3]);
+    snprintf(mqttClientId, sizeof(mqttClientId), "m55m1-%08x", value);
+    snprintf(mqttImagePubTopic, sizeof(mqttImagePubTopic), "nuvoton/%s/image", mqttClientId);
+    LOG_I("MQTT Publish Image Topic -> %s", mqttImagePubTopic);
+
     // 初始化mqtt客户端
     result = RyanMqttInit(&client);
     RyanMqttCheck(RyanMqttSuccessError == result, result, rlog_d);
@@ -285,7 +298,7 @@ int MqttConnect(int argc, char *argv[])
     RyanMqttCheck(RyanMqttSuccessError == result, result, rlog_d);
 
     // 设置遗嘱消息
-    result = RyanMqttSetLwt(client, "pub/test", "this is will", strlen("this is will"), RyanMqttQos0, 0);
+    result = RyanMqttSetLwt(client, "nuvoton/pub/will", mqttImagePubTopic, strlen(mqttImagePubTopic), RyanMqttQos1, 0);
     RyanMqttCheck(RyanMqttSuccessError == result, result, rlog_d);
 
     // 启动mqtt客户端线程
@@ -624,12 +637,11 @@ static int RyanMqttMsh(int argc, char *argv[])
     MSH_CMD_EXPORT_ALIAS(RyanMqttMsh, mqtt, RyanMqtt command);
 #endif
 
-#define MQTT_PUBTOPIC   "nuvoton/m55m1/image"
 int mqtt_pub_image(uint8_t *buf, uint32_t len)
 {
     if (client)
     {
-        RyanMqttError_e ret = RyanMqttPublish(client, MQTT_PUBTOPIC, buf, len, 1, 0);
+        RyanMqttError_e ret = RyanMqttPublish(client, mqttImagePubTopic, buf, len, 1, 0);
         if (RyanMqttSuccessError != ret)
         {
             rt_kprintf("Error: %d(%s)\n", ret, RyanMqttStrError(ret));
