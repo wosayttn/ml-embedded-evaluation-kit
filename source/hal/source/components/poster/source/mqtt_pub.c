@@ -30,7 +30,7 @@ static RyanMqttClient_t *client = NULL;
 static char mqttRecvBuffer[1024];
 static char mqttSendBuffer[(32 * 1024)];
 static char mqttClientId[16];
-static char mqttImagePubTopic[32];
+static char s_mqttImagePubTopic[32];
 
 // 具体数值计算可以查看事件回调函数
 static uint32_t mqttTest[10] = {0};
@@ -237,6 +237,34 @@ static int MqttState(int argc, char *argv[])
  * @param argv
  * @return int
  */
+RyanMqttClientConfig_t mqttConfig =
+{
+    .clientId = mqttClientId,
+    .userName = RyanMqttUserName,
+    .password = RyanMqttPassword,
+    .host = RyanMqttHost,
+    .port = RyanMqttPort,
+    .taskName = "mqttThread",
+    .taskPrio = 16,
+    .taskStack = 2048,
+    .recvBufferSize = sizeof(mqttRecvBuffer),
+    .sendBufferSize = sizeof(mqttSendBuffer),
+    .recvBuffer = mqttRecvBuffer,
+    .sendBuffer = mqttSendBuffer,
+    .mqttVersion = 4,
+    .ackHandlerRepeatCountWarning = 6,
+    .ackHandlerCountWarning = 20,
+    .autoReconnectFlag = RyanMqttTrue,
+    .cleanSessionFlag = RyanMqttFalse,
+    .reconnectTimeout = 3000,
+    .recvTimeout = 5000,
+    .sendTimeout = 2000,
+    .ackTimeout = 10000,
+    .keepaliveTimeoutS = 120,
+    .mqttEventHandle = mqttEventHandle,
+    .userData = NULL
+};
+
 int MqttConnect(int argc, char *argv[])
 {
     if (RyanMqttConnectState == RyanMqttGetState(client))
@@ -246,33 +274,6 @@ int MqttConnect(int argc, char *argv[])
     }
 
     RyanMqttError_e result = RyanMqttSuccessError;
-    RyanMqttClientConfig_t mqttConfig =
-    {
-        .clientId = mqttClientId,
-        .userName = RyanMqttUserName,
-        .password = RyanMqttPassword,
-        .host = RyanMqttHost,
-        .port = RyanMqttPort,
-        .taskName = "mqttThread",
-        .taskPrio = 16,
-        .taskStack = 2048,
-        .recvBufferSize = sizeof(mqttRecvBuffer),
-        .sendBufferSize = sizeof(mqttSendBuffer),
-        .recvBuffer = mqttRecvBuffer,
-        .sendBuffer = mqttSendBuffer,
-        .mqttVersion = 4,
-        .ackHandlerRepeatCountWarning = 6,
-        .ackHandlerCountWarning = 20,
-        .autoReconnectFlag = RyanMqttTrue,
-        .cleanSessionFlag = RyanMqttFalse,
-        .reconnectTimeout = 3000,
-        .recvTimeout = 5000,
-        .sendTimeout = 2000,
-        .ackTimeout = 10000,
-        .keepaliveTimeoutS = 120,
-        .mqttEventHandle = mqttEventHandle,
-        .userData = NULL
-    };
 
     uint32_t uid[4] = {0};
     uint32_t value = 0x87878787;
@@ -282,8 +283,8 @@ int MqttConnect(int argc, char *argv[])
     nu_read_uid((uint32_t *)&uid);
     value ^= (uid[0] ^ uid[1] ^ uid[2] ^ uid[3]);
     snprintf(mqttClientId, sizeof(mqttClientId), "m55m1-%08x", value);
-    snprintf(mqttImagePubTopic, sizeof(mqttImagePubTopic), "nuvoton/%s/image", mqttClientId);
-    LOG_I("MQTT Publish Image Topic -> %s", mqttImagePubTopic);
+    snprintf(s_mqttImagePubTopic, sizeof(s_mqttImagePubTopic), "%s/image", mqttClientId);
+    LOG_I("MQTT Publish Image Topic -> %s", s_mqttImagePubTopic);
 
     // 初始化mqtt客户端
     result = RyanMqttInit(&client);
@@ -298,7 +299,7 @@ int MqttConnect(int argc, char *argv[])
     RyanMqttCheck(RyanMqttSuccessError == result, result, rlog_d);
 
     // 设置遗嘱消息
-    result = RyanMqttSetLwt(client, "nuvoton/pub/will", mqttImagePubTopic, strlen(mqttImagePubTopic), RyanMqttQos1, 0);
+    result = RyanMqttSetLwt(client, "nuvoton/pub/will", s_mqttImagePubTopic, strlen(s_mqttImagePubTopic), RyanMqttQos1, 0);
     RyanMqttCheck(RyanMqttSuccessError == result, result, rlog_d);
 
     // 启动mqtt客户端线程
@@ -637,17 +638,21 @@ static int RyanMqttMsh(int argc, char *argv[])
     MSH_CMD_EXPORT_ALIAS(RyanMqttMsh, mqtt, RyanMqtt command);
 #endif
 
+static char s_szLastStatus[32] = {0};
+
 int mqtt_pub_image(uint8_t *buf, uint32_t len)
 {
     if (client)
     {
-        RyanMqttError_e ret = RyanMqttPublish(client, mqttImagePubTopic, buf, len, 1, 0);
+        RyanMqttError_e ret = RyanMqttPublish(client, s_mqttImagePubTopic, buf, len, 1, 0);
         if (RyanMqttSuccessError != ret)
         {
-            rt_kprintf("Error: %d(%s)\n", ret, RyanMqttStrError(ret));
+            rt_snprintf(s_szLastStatus, sizeof(s_szLastStatus), "%s", RyanMqttStrError(ret));
+            rt_kprintf("Error: %d(%s)\n", ret, s_szLastStatus);
         }
         else
         {
+            rt_snprintf(s_szLastStatus, sizeof(s_szLastStatus), "Sent %d Bytes", len);
             rt_kprintf("Publish %d Bytes\n", len);
         }
 
@@ -655,4 +660,24 @@ int mqtt_pub_image(uint8_t *buf, uint32_t len)
     }
 
     return -1;
+}
+
+char *Mqtt_GetHost(void)
+{
+    return mqttConfig.host;
+}
+
+char *Mqtt_GetClientID(void)
+{
+    return mqttConfig.clientId;
+}
+
+char *Mqtt_GetImagePubTopic(void)
+{
+    return s_mqttImagePubTopic;
+}
+
+char *Mqtt_GetLastStatus(void)
+{
+    return s_szLastStatus;
 }

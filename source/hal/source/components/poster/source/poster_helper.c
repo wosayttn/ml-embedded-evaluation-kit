@@ -104,12 +104,11 @@ static void poster_mqtt_func(struct rt_work *work, void *work_data)
 #endif
 }
 
+static uint32_t mqttNotifyInterval = 1000;
 int poster_mqtt(S_JPEG_CONTEXT *psJpegECtx)
 {
-#define POSTER_DELAY_TIME    3000  //ms
     static uint32_t u32LastPoster = 0;
-
-    if ((POSTER_DELAY_TIME + u32LastPoster) < rt_tick_get())
+    if ((mqttNotifyInterval + u32LastPoster) < rt_tick_get())
     {
         if (psJpegECtx && psJpegECtx->pu8SrcImgBuf)
         {
@@ -131,6 +130,11 @@ int poster_mqtt(S_JPEG_CONTEXT *psJpegECtx)
     }
 
     return -1;
+}
+
+void poster_SetNotifyInterval(uint32_t t)
+{
+    mqttNotifyInterval = t;
 }
 
 static int poster_mqtt_init(void)
