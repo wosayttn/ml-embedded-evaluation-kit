@@ -37,8 +37,8 @@ void *memheap_helper_allocate(E_AREANA_PLACEMENT evAreanaPlacement, uint32_t u32
         break;
 
     case evAREANA_AT_HYPERRAM:
-#if defined(BSP_USING_SPIM1)
-        p = rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_SPIM1), u32Size + 32);
+#if defined(BSP_USING_SPIM0)
+        p = rt_memheap_alloc(nu_memheap_get(NU_MEMHEAP_SPIM0), u32Size + 32);
 #endif
         break;
     default:
