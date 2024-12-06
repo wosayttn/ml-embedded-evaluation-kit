@@ -192,7 +192,7 @@ static void _DisplayImage(const void *data, const uint32_t width,
         }
         else
         {
-            memcpy(SHADOW_BUFFER_START, data, height * width * 2);
+            //memcpy(SHADOW_BUFFER_START, data, height * width * 2);
         }
 
         {
@@ -202,7 +202,7 @@ static void _DisplayImage(const void *data, const uint32_t width,
             rect.y = pos_y + SHADOW_BUFFER_Y_OFFSET;
             rect.width = width / downsample_factor;
             rect.height = height / downsample_factor;
-            rect.framebuffer = SHADOW_BUFFER_START;
+            rect.framebuffer = (channels == 2) ? data : SHADOW_BUFFER_START;
             rt_device_control(s_lcd, RTGRAPHIC_CTRL_RECT_UPDATE2, &rect);
         }
     }

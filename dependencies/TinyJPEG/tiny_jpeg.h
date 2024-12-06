@@ -990,7 +990,7 @@ static int tjei_encode_main(TJEState *state,
                             const int height,
                             const int src_num_components)
 {
-    if (src_num_components != 1 && src_num_components != 3 && src_num_components != 4)
+    if (src_num_components != 1 && src_num_components != 2 && src_num_components != 3 && src_num_components != 4)
     {
         return 0;
     }
@@ -1151,6 +1151,20 @@ static int tjei_encode_main(TJEState *state,
                 for (int off_x = 0; off_x < 8; ++off_x)
                 {
                     int block_index = (off_y * 8 + off_x);
+                    int src_index;
+                    int u_index;
+                    int v_index;
+
+                    if (src_num_components == 2) //YUV422P-only
+                    {
+                        src_index = (((y + off_y) * width) + (x + off_x)) * 1;
+                        u_index = (width * height) + (((y + off_y) * width) + (x + off_x)) * 1;
+                        v_index = (3 * (width * height) / 2) + (((y + off_y) * width) + (x + off_x)) * 1;
+                    }
+                    else
+                    {
+                        src_index = (((y + off_y) * width) + (x + off_x)) * src_num_components;
+                    }
 
                     int src_index = (((y + off_y) * width) + (x + off_x)) * src_num_components;
 
@@ -1172,6 +1186,12 @@ static int tjei_encode_main(TJEState *state,
                         du_y[block_index] = src_data[src_index] - 128;
                         du_b[block_index] = 0;
                         du_r[block_index] = 0;
+                    }
+                    else if (src_num_components == 2) //YUV422P-only
+                    {
+                        du_y[block_index] = src_data[src_index] - 128;
+                        du_b[block_index] = src_data[u_index];
+                        du_r[block_index] = src_data[v_index];
                     }
                     else
                     {

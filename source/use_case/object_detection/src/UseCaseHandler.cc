@@ -204,13 +204,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     auto &profiler = ctx.Get<Profiler &>("profiler");
 
     constexpr uint32_t dataPsnImgDownscaleFactor = 1;
-    constexpr uint32_t dataPsnImgStartX          = 10;
-    constexpr uint32_t dataPsnImgStartY          = 35;
-
-    constexpr uint32_t dataPsnTxtInfStartX = 20;
-    constexpr uint32_t dataPsnTxtInfStartY = 28;
-
-    //hal_lcd_clear(COLOR_BLACK);
+    constexpr uint32_t dataPsnImgStartX          = 0;
+    constexpr uint32_t dataPsnImgStartY          = 0;
 
     auto &model = ctx.Get<Model &>("model");
 
@@ -256,7 +251,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     DetectorPostProcess postProcess =
         DetectorPostProcess(outputTensor0, outputTensor1, results, postProcessParams);
 
-#define TC8263        1
+#define TC8263                  0
+#define M55M1_PLANAR_ONLY       0
 #if (TC8263==1)
     ccap_view_info sViewInfo_Packet;
 
@@ -273,13 +269,14 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         return false;
     }
 #else
-    ccap_view_info sViewInfo_Packet;
     ccap_view_info sViewInfo_Planar;
-
+#if (M55M1_PLANAR_ONLY==0)
+    ccap_view_info sViewInfo_Packet;
     sViewInfo_Packet.u32Width    = inputImgCols;
     sViewInfo_Packet.u32Height   = inputImgRows;
     sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
     sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+#endif
 
     sViewInfo_Planar.u32Width    = inputImgCols;
     sViewInfo_Planar.u32Height   = inputImgRows;
@@ -287,10 +284,14 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
 
     /* Initialise CAMERA - use packet/planar pipes */
+#if (M55M1_PLANAR_ONLY==1)
+    if (0 != hal_camera_init(NULL, &sViewInfo_Planar))
+#else
     if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
+#endif
     {
         printf_err("hal_camera_init failed\n");
-        goto exit_main_loop;
+        return false;
     }
 #endif
 
@@ -300,6 +301,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         /* Sync a frame. */
         hal_camera_sync();
 
+#if (M55M1_PLANAR_ONLY==0)
         /* Get packet buffer. */
         const uint8_t *PktImage = hal_camera_get_frame(0);
         if (PktImage == NULL)
@@ -307,6 +309,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             printf_err("Sync pkt frame failed.");
             break;
         }
+#endif
 
 #if (TC8263!=1)
         /* Get planar buffer. */
@@ -323,20 +326,32 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 
         /* Display image on the LCD. */
         hal_lcd_display_image(
-#if (TC8263==1)
-            PktImage,
-#else
+#if (M55M1_PLANAR_ONLY==1)
             PlaImage,
+            sViewInfo_Planar.u32Width,
+            sViewInfo_Planar.u32Height,
+#else
+            PktImage,
+            sViewInfo_Packet.u32Width,
+            sViewInfo_Packet.u32Height,
 #endif
-            inputImgCols,
-            inputImgRows,
+#if (TC8263==1) || (M55M1_PLANAR_ONLY==1)
             1,
+#else
+            2,
+#endif
             dataPsnImgStartX,
             dataPsnImgStartY,
             dataPsnImgDownscaleFactor);
 
         /* Run the pre-processing, inference and post-processing. */
-        if (!preProcess.DoPreProcess(PktImage, copySz))
+        if (!preProcess.DoPreProcess(
+#if (TC8263==1)
+                    PktImage,
+#else
+                    PlaImage,
+#endif
+                    copySz))
         {
             printf_err("Pre-processing failed.");
             break;
@@ -364,10 +379,11 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             // Only Y
             PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
 #else
+            // Only Y
+            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 1);
             // YUV422
-            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
+            //PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
 #endif
-
             /* Draw boxes. */
             DrawDetectionBoxes(
                 results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);

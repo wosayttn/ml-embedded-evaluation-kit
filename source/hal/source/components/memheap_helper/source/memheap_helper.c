@@ -69,7 +69,7 @@ void memheap_helper_free(E_AREANA_PLACEMENT evAreanaPlacement, void *p)
             rt_free_align(p);
             break;
         case evAREANA_AT_HYPERRAM:
-#if defined(BSP_USING_SPIM1)
+#if defined(BSP_USING_SPIM0)
             rt_memheap_free(p);
 #endif
             break;
