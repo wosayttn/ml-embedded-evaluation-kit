@@ -1157,16 +1157,14 @@ static int tjei_encode_main(TJEState *state,
 
                     if (src_num_components == 2) //YUV422P-only
                     {
-                        src_index = (((y + off_y) * width) + (x + off_x)) * 1;
-                        u_index = (width * height) + (((y + off_y) * width) + (x + off_x)) * 1;
-                        v_index = (3 * (width * height) / 2) + (((y + off_y) * width) + (x + off_x)) * 1;
+                        src_index = (((y + off_y) * width) + (x + off_x));
+                        u_index   = (((y + off_y) * width / 2) + (x + off_x) / 2) + (width * height);
+                        v_index   = (((y + off_y) * width / 2) + (x + off_x) / 2) + (width * height) + ((width * height) / 2);
                     }
                     else
                     {
                         src_index = (((y + off_y) * width) + (x + off_x)) * src_num_components;
                     }
-
-                    int src_index = (((y + off_y) * width) + (x + off_x)) * src_num_components;
 
                     int col = x + off_x;
                     int row = y + off_y;
@@ -1187,11 +1185,11 @@ static int tjei_encode_main(TJEState *state,
                         du_b[block_index] = 0;
                         du_r[block_index] = 0;
                     }
-                    else if (src_num_components == 2) //YUV422P-only
+                    else if (src_num_components == 2) //YUV422P
                     {
                         du_y[block_index] = src_data[src_index] - 128;
-                        du_b[block_index] = src_data[u_index];
-                        du_r[block_index] = src_data[v_index];
+                        du_b[block_index] = src_data[u_index] - 128;
+                        du_r[block_index] = src_data[v_index] - 128;
                     }
                     else
                     {

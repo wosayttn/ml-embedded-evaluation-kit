@@ -380,9 +380,9 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
 #else
             // Only Y
-            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 1);
-            // YUV422
-            //PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
+            //PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 1);
+            // YUV422P
+            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
 #endif
             /* Draw boxes. */
             DrawDetectionBoxes(
