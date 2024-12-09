@@ -49,7 +49,13 @@ PresentInferenceResult(const std::vector<object_detection::DetectionResult> &res
 static void DrawDetectionBoxes(const std::vector<object_detection::DetectionResult> &results,
                                uint32_t imgStartX,
                                uint32_t imgStartY,
-                               uint32_t imgDownscaleFactor);
+                               float imgDownscaleFactor);
+
+static void DrawDetectionBoxesXY(const std::vector<object_detection::DetectionResult> &results,
+                                 uint32_t imgStartX,
+                                 uint32_t imgStartY,
+                                 float imgXScaleFactor,
+                                 float imgYScaleFactor);
 
 /* Object detection inference handler. */
 bool ObjectDetectionHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAll)
@@ -253,7 +259,18 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 
 #define TC8263                  0
 #define M55M1_PLANAR_ONLY       0
+    uint32_t u32ImgWidthInference = 0;
+    uint32_t u32ImgHeightInference = 0;
+    uint32_t u32ImgBPPInference = 0;
+
+    uint32_t u32ImgWidthPreview = 0;
+    uint32_t u32ImgHeightPreview = 0;
+    uint32_t u32ImgBPPPreview = 0;
+    const uint8_t *pu8ImagePreview = NULL;
+    const uint8_t *pu8ImageInference = NULL;
+
 #if (TC8263==1)
+
     ccap_view_info sViewInfo_Packet;
 
     /* TEST CHIP use packet-y only */
@@ -268,25 +285,44 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         printf_err("hal_camera_init failed\n");
         return false;
     }
-#else
-    ccap_view_info sViewInfo_Planar;
-#if (M55M1_PLANAR_ONLY==0)
-    ccap_view_info sViewInfo_Packet;
-    sViewInfo_Packet.u32Width    = inputImgCols;
-    sViewInfo_Packet.u32Height   = inputImgRows;
-    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
-#endif
 
+    u32ImgWidthInference = sViewInfo_Packet.u32Width;
+    u32ImgHeightInference = sViewInfo_Packet.u32Height;
+    u32ImgBPPInference = 1;  // Y-only
+
+    u32ImgWidthPreview = sViewInfo_Packet.u32Height;
+    u32ImgHeightPreview = sViewInfo_Packet.u32Height;
+    u32ImgBPPPreview = 1;  // Y-only
+
+#else
+    // M55M1
+    ccap_view_info sViewInfo_Planar;
     sViewInfo_Planar.u32Width    = inputImgCols;
     sViewInfo_Planar.u32Height   = inputImgRows;
     sViewInfo_Planar.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
     sViewInfo_Planar.u32PixFmt   = CCAP_PAR_PLNFMT_YUV422;
 
-    /* Initialise CAMERA - use packet/planar pipes */
+    u32ImgWidthInference = sViewInfo_Planar.u32Width;
+    u32ImgHeightInference = sViewInfo_Planar.u32Height;
+    u32ImgBPPInference = 1; // Y-only
+
 #if (M55M1_PLANAR_ONLY==1)
+    u32ImgWidthPreview = u32ImgWidthInference;
+    u32ImgHeightPreview = u32ImgHeightInference;
+    u32ImgBPPPreview = u32ImgBPPInference;
+
     if (0 != hal_camera_init(NULL, &sViewInfo_Planar))
 #else
+    ccap_view_info sViewInfo_Packet;
+    sViewInfo_Packet.u32Width    = hal_lcd_get_width();
+    sViewInfo_Packet.u32Height   = hal_lcd_get_height();
+    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
+    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
+
+    u32ImgWidthPreview = sViewInfo_Packet.u32Width;
+    u32ImgHeightPreview = sViewInfo_Packet.u32Height;
+    u32ImgBPPPreview = 2;
+
     if (0 != hal_camera_init(&sViewInfo_Packet, &sViewInfo_Planar))
 #endif
     {
@@ -324,33 +360,31 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         /* One-shutter new frame. */
         hal_camera_oneshot();
 
+#if (M55M1_PLANAR_ONLY==1)
+        pu8ImagePreview = PlaImage;
+#else
+        pu8ImagePreview = PktImage;
+#endif
+
+#if (TC8263==1)
+        pu8ImageInference = PktImage;
+#else
+        pu8ImageInference = PlaImage;
+#endif
+
         /* Display image on the LCD. */
         hal_lcd_display_image(
-#if (M55M1_PLANAR_ONLY==1)
-            PlaImage,
-            sViewInfo_Planar.u32Width,
-            sViewInfo_Planar.u32Height,
-#else
-            PktImage,
-            sViewInfo_Packet.u32Width,
-            sViewInfo_Packet.u32Height,
-#endif
-#if (TC8263==1) || (M55M1_PLANAR_ONLY==1)
-            1,
-#else
-            2,
-#endif
+            pu8ImagePreview,
+            u32ImgWidthPreview,
+            u32ImgHeightPreview,
+            u32ImgBPPPreview,
             dataPsnImgStartX,
             dataPsnImgStartY,
             dataPsnImgDownscaleFactor);
 
         /* Run the pre-processing, inference and post-processing. */
         if (!preProcess.DoPreProcess(
-#if (TC8263==1)
-                    PktImage,
-#else
-                    PlaImage,
-#endif
+                    pu8ImageInference,
                     copySz))
         {
             printf_err("Pre-processing failed.");
@@ -377,16 +411,19 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         {
 #if (TC8263==1)
             // Only Y
-            PosterNotify(ctx, (const uint8_t *)PktImage, inputImgRows, inputImgCols, 1);
+            PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, u32ImgBPPInference);
 #else
             // Only Y
-            //PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 1);
+            //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 1);
+
             // YUV422P
-            PosterNotify(ctx, (const uint8_t *)PlaImage, inputImgRows, inputImgCols, 2);
+            PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
 #endif
             /* Draw boxes. */
-            DrawDetectionBoxes(
-                results, dataPsnImgStartX, dataPsnImgStartY, dataPsnImgDownscaleFactor);
+            DrawDetectionBoxesXY(
+                results, dataPsnImgStartX, dataPsnImgStartY,
+                (float)u32ImgWidthPreview / u32ImgWidthInference,
+                (float)u32ImgHeightPreview / u32ImgHeightInference);
         }
 
     } // while(1)
@@ -439,7 +476,7 @@ PresentInferenceResultMqtt(const std::vector<object_detection::DetectionResult> 
 static void DrawDetectionBoxes(const std::vector<object_detection::DetectionResult> &results,
                                uint32_t imgStartX,
                                uint32_t imgStartY,
-                               uint32_t imgDownscaleFactor)
+                               float imgDownscaleFactor)
 {
     uint32_t lineThickness = 1;
 
@@ -471,6 +508,46 @@ static void DrawDetectionBoxes(const std::vector<object_detection::DetectionResu
                             imgStartY + result.m_y0 / imgDownscaleFactor,
                             lineThickness,
                             result.m_h / imgDownscaleFactor,
+                            COLOR_GREEN);
+    }
+}
+
+static void DrawDetectionBoxesXY(const std::vector<object_detection::DetectionResult> &results,
+                                 uint32_t imgStartX,
+                                 uint32_t imgStartY,
+                                 float imgXScaleFactor,
+                                 float imgYScaleFactor)
+{
+    uint32_t lineThickness = 1;
+
+    for (const auto &result : results)
+    {
+        /* Top line. */
+        hal_lcd_display_box(imgStartX + result.m_x0 * imgXScaleFactor,
+                            imgStartY + result.m_y0 * imgYScaleFactor,
+                            result.m_w * imgXScaleFactor,
+                            lineThickness,
+                            COLOR_GREEN);
+        /* Bot line. */
+        hal_lcd_display_box(imgStartX + result.m_x0 * imgXScaleFactor,
+                            imgStartY + (result.m_y0 + result.m_h) * imgYScaleFactor -
+                            lineThickness,
+                            result.m_w * imgXScaleFactor,
+                            lineThickness,
+                            COLOR_GREEN);
+
+        /* Left line. */
+        hal_lcd_display_box(imgStartX + result.m_x0 * imgXScaleFactor,
+                            imgStartY + result.m_y0 * imgYScaleFactor,
+                            lineThickness,
+                            result.m_h * imgYScaleFactor,
+                            COLOR_GREEN);
+        /* Right line. */
+        hal_lcd_display_box(imgStartX + (result.m_x0 + result.m_w) * imgXScaleFactor -
+                            lineThickness,
+                            imgStartY + result.m_y0 * imgYScaleFactor,
+                            lineThickness,
+                            result.m_h * imgYScaleFactor,
                             COLOR_GREEN);
     }
 }

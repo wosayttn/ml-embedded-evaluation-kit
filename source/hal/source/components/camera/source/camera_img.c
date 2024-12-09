@@ -27,18 +27,19 @@
 #define DBG_COLOR
 #include <rtdbg.h>
 
-#define THREAD_PRIORITY   10
-#define THREAD_STACK_SIZE 1024
-#define THREAD_TIMESLICE  5
+#define THREAD_PRIORITY         10
+#define THREAD_STACK_SIZE       1024
+#define THREAD_TIMESLICE        5
 
-#define DEF_FRAMERATE_DIV2
-
+#define DEF_PACKET_PLACE        evAREANA_AT_SRAM
+#define DEF_PLANAR_PLACE        evAREANA_AT_SRAM
 #define DEF_DURATION            10
 #define DEF_ONE_SHOT            1
-#define DEF_BUFFER_NUM          2
+#define DEF_BUFFER_NUM          1
 #if (DEF_BUFFER_NUM > 1)
     #define DEF_SWITCH_BASE_ADDR_ISR
 #endif
+//#define DEF_FRAMERATE_DIV2
 
 typedef struct
 {
@@ -182,13 +183,15 @@ static void ccap_sensor_fini(rt_device_t psDevCcap, rt_device_t psDevSensor)
 
     if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr)
     {
-        rt_free_align(psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
+        //rt_free_align(psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
+        memheap_helper_free(DEF_PACKET_PLACE, psCcapConfig->sPipeInfo_Packet.pu8FarmAddr);
+
         psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = RT_NULL;
     }
 
     if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
     {
-        rt_free_align(psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
+        memheap_helper_free(DEF_PLANAR_PLACE, psCcapConfig->sPipeInfo_Planar.pu8FarmAddr);
         psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = RT_NULL;
     }
 }
@@ -231,8 +234,8 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
                              DEF_BUFFER_NUM;
 
             // Allocate memory.
-            psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
-            //psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = memheap_helper_allocate(evAREANA_AT_HYPERRAM, RT_ALIGN(u32Sz, 32));
+            psCcapConfig->sPipeInfo_Packet.pu8FarmAddr = memheap_helper_allocate(DEF_PACKET_PLACE,
+                    RT_ALIGN(u32Sz, 32));
             if (psCcapConfig->sPipeInfo_Packet.pu8FarmAddr == RT_NULL)
             {
                 psCcapConfig->sPipeInfo_Packet.u32Height = 0;
@@ -262,8 +265,8 @@ static rt_device_t ccap_sensor_init(ccap_grabber_context_t psGrabberContext, cca
                              DEF_BUFFER_NUM;
 
             // Allocate memory.
-            psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = rt_malloc_align(RT_ALIGN(u32Sz, 32), 32);
-            //psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = memheap_helper_allocate(evAREANA_AT_HYPERRAM, RT_ALIGN(u32Sz, 32));
+            psCcapConfig->sPipeInfo_Planar.pu8FarmAddr = memheap_helper_allocate(DEF_PLANAR_PLACE,
+                    RT_ALIGN(u32Sz, 32));
             if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr == RT_NULL)
             {
                 psCcapConfig->sPipeInfo_Planar.u32Height = 0;
