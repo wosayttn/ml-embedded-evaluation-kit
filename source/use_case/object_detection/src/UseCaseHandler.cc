@@ -210,8 +210,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     auto &profiler = ctx.Get<Profiler &>("profiler");
 
     constexpr uint32_t dataPsnImgDownscaleFactor = 1;
-    constexpr uint32_t dataPsnImgStartX          = 0;
-    constexpr uint32_t dataPsnImgStartY          = 0;
+    uint32_t dataPsnImgStartX, dataPsnImgStartY;
 
     auto &model = ctx.Get<Model &>("model");
 
@@ -314,8 +313,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     if (0 != hal_camera_init(NULL, &sViewInfo_Planar))
 #else
     ccap_view_info sViewInfo_Packet;
-    sViewInfo_Packet.u32Width    = hal_lcd_get_width();
-    sViewInfo_Packet.u32Height   = hal_lcd_get_height();
+    sViewInfo_Packet.u32Width    = 256;//hal_lcd_get_width();
+    sViewInfo_Packet.u32Height   = 256;//hal_lcd_get_height();
     sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
     sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
 
@@ -371,6 +370,9 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 #else
         pu8ImageInference = PlaImage;
 #endif
+
+        dataPsnImgStartX = hal_lcd_get_width() - u32ImgWidthPreview;
+        dataPsnImgStartY = 0;
 
         /* Display image on the LCD. */
         hal_lcd_display_image(

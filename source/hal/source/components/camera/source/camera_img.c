@@ -31,8 +31,10 @@
 #define THREAD_STACK_SIZE       1024
 #define THREAD_TIMESLICE        5
 
+//#define DEF_PACKET_PLACE        evAREANA_AT_HYPERRAM
 #define DEF_PACKET_PLACE        evAREANA_AT_SRAM
-#define DEF_PLANAR_PLACE        evAREANA_AT_SRAM
+#define DEF_PLANAR_PLACE        DEF_PACKET_PLACE
+
 #define DEF_DURATION            10
 #define DEF_ONE_SHOT            1
 #define DEF_BUFFER_NUM          1

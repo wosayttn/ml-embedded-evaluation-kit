@@ -323,7 +323,7 @@ int lcd_init(void)
         goto fail_lcd_init;
     }
 
-    lcd_clear(Black);
+    //lcd_clear(Black);
 
     return 0;
 
