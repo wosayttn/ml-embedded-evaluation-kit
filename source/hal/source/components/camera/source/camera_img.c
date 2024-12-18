@@ -37,6 +37,8 @@
 
 #define DEF_DURATION            10
 #define DEF_ONE_SHOT            1
+
+// Due to Limited resource.
 #define DEF_BUFFER_NUM          1
 #if (DEF_BUFFER_NUM > 1)
     #define DEF_SWITCH_BASE_ADDR_ISR
@@ -529,7 +531,7 @@ const uint8_t *camera_get_frame(int pipe)
                          ((sGrabberContext.u32ISRFrameEnd - 1) % DEF_BUFFER_NUM);
         }
     }
-    else     if (pipe == 1)  /* For planar */
+    else if (pipe == 1)  /* For planar */
     {
         if (psCcapConfig->sPipeInfo_Planar.pu8FarmAddr)
         {
@@ -558,10 +560,13 @@ int camera_sync(void)
 int camera_oneshot(void)
 {
 #if DEF_ONE_SHOT
-    int OpModeShutter = 1;
+    if (sGrabberContext.psDevCcap)
+    {
+        int OpModeShutter = 1;
 
-    /* One-shot mode, trigger next frame */
-    rt_device_control(sGrabberContext.psDevCcap, CCAP_CMD_SET_OPMODE, &OpModeShutter);
+        /* One-shot mode, trigger next frame */
+        rt_device_control(sGrabberContext.psDevCcap, CCAP_CMD_SET_OPMODE, &OpModeShutter);
+    }
 #endif
 
     return 0;

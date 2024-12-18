@@ -35,6 +35,13 @@ bool hal_platform_init(void)
         //return false;
     }
 
+    /* Initialise UVC */
+    if (0 != hal_uvc_init())
+    {
+        printf_err("hal_uvc_init failed\n");
+        //return false;
+    }
+
     /* Initialise PMU */
     hal_pmu_init();
 
@@ -43,8 +50,9 @@ bool hal_platform_init(void)
 
 void hal_platform_release(void)
 {
-    hal_camera_fini();
     hal_lcd_fini();
+    hal_uvc_fini();
+    hal_camera_fini();
     platform_release();
 }
 

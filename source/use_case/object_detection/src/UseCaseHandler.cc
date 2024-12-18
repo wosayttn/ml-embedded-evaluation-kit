@@ -57,6 +57,14 @@ static void DrawDetectionBoxesXY(const std::vector<object_detection::DetectionRe
                                  float imgXScaleFactor,
                                  float imgYScaleFactor);
 
+static int DrawLine(const uint32_t pos_x, const uint32_t pos_y,
+                    const uint32_t width, const uint32_t height, const uint16_t color,
+                    uint8_t *pu8imgBuf, uint32_t imgBufWidth, uint32_t imgBufHeight);
+
+static void DrawDetectionBoxesXYOnBuffer(const std::vector<object_detection::DetectionResult> &results,
+        float imgXScaleFactor, float imgYScaleFactor,
+        uint8_t *pu8imgBuf, uint32_t imgBufWidth, uint32_t imgBufHeight);
+
 /* Object detection inference handler. */
 bool ObjectDetectionHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAll)
 {
@@ -265,7 +273,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     uint32_t u32ImgWidthPreview = 0;
     uint32_t u32ImgHeightPreview = 0;
     uint32_t u32ImgBPPPreview = 0;
-    const uint8_t *pu8ImagePreview = NULL;
+    uint8_t *pu8ImagePreview = NULL;
     const uint8_t *pu8ImageInference = NULL;
 
 #if (TC8263==1)
@@ -313,8 +321,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     if (0 != hal_camera_init(NULL, &sViewInfo_Planar))
 #else
     ccap_view_info sViewInfo_Packet;
-    sViewInfo_Packet.u32Width    = 256;//hal_lcd_get_width();
-    sViewInfo_Packet.u32Height   = 256;//hal_lcd_get_height();
+    sViewInfo_Packet.u32Width    = 320; //hal_lcd_get_width();
+    sViewInfo_Packet.u32Height   = 240; //hal_lcd_get_height();
     sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
     sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_RGB565;
 
@@ -333,6 +341,9 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     const size_t copySz = inputImgRows * inputImgCols;
     while (1)
     {
+        /* One-shutter new frame. */
+        hal_camera_oneshot();
+
         /* Sync a frame. */
         hal_camera_sync();
 
@@ -356,13 +367,10 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         }
 #endif
 
-        /* One-shutter new frame. */
-        hal_camera_oneshot();
-
 #if (M55M1_PLANAR_ONLY==1)
         pu8ImagePreview = PlaImage;
 #else
-        pu8ImagePreview = PktImage;
+        pu8ImagePreview = (uint8_t *)PktImage;
 #endif
 
 #if (TC8263==1)
@@ -371,18 +379,8 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         pu8ImageInference = PlaImage;
 #endif
 
-        dataPsnImgStartX = hal_lcd_get_width() - u32ImgWidthPreview;
-        dataPsnImgStartY = 0;
-
-        /* Display image on the LCD. */
-        hal_lcd_display_image(
-            pu8ImagePreview,
-            u32ImgWidthPreview,
-            u32ImgHeightPreview,
-            u32ImgBPPPreview,
-            dataPsnImgStartX,
-            dataPsnImgStartY,
-            dataPsnImgDownscaleFactor);
+        dataPsnImgStartX = hal_lcd_get_width() - u32ImgWidthPreview - 8;
+        dataPsnImgStartY = 8;
 
         /* Run the pre-processing, inference and post-processing. */
         if (!preProcess.DoPreProcess(
@@ -422,10 +420,23 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
 #endif
             /* Draw boxes. */
-            DrawDetectionBoxesXY(
-                results, dataPsnImgStartX, dataPsnImgStartY,
-                (float)u32ImgWidthPreview / u32ImgWidthInference,
-                (float)u32ImgHeightPreview / u32ImgHeightInference);
+            DrawDetectionBoxesXYOnBuffer(results,
+                                         (float)u32ImgWidthPreview / u32ImgWidthInference,
+                                         (float)u32ImgHeightPreview / u32ImgHeightInference,
+                                         pu8ImagePreview, u32ImgWidthPreview, u32ImgHeightPreview);
+        }
+
+        if (!hal_uvc_send_image((uint32_t)pu8ImagePreview, u32ImgWidthPreview * u32ImgHeightPreview * u32ImgBPPPreview))
+        {
+            /* Display image on the LCD. */
+            hal_lcd_display_image(
+                pu8ImagePreview,
+                u32ImgWidthPreview,
+                u32ImgHeightPreview,
+                u32ImgBPPPreview,
+                dataPsnImgStartX,
+                dataPsnImgStartY,
+                dataPsnImgDownscaleFactor);
         }
 
     } // while(1)
@@ -552,6 +563,78 @@ static void DrawDetectionBoxesXY(const std::vector<object_detection::DetectionRe
                             result.m_h * imgYScaleFactor,
                             COLOR_GREEN);
     }
+}
+
+static int DrawLine(const uint32_t pos_x, const uint32_t pos_y,
+                    const uint32_t width, const uint32_t height, const uint16_t color,
+                    uint8_t *pu8imgBuf, uint32_t imgBufWidth, uint32_t imgBufHeight)
+{
+    /* If not within the LCD bounds, return error. */
+    if (pos_x > imgBufWidth || pos_y > imgBufHeight)
+    {
+        return 1;
+    }
+    else
+    {
+        uint32_t x, y;
+        uint16_t *pu16StartBuf = (uint16_t *)pu8imgBuf + pos_y * imgBufWidth + pos_x;
+
+        for (y = 0; y < height; y++)
+        {
+            for (x = 0; x < width; x++)
+            {
+                *pu16StartBuf = color;
+                pu16StartBuf++;
+            }
+
+            pu16StartBuf += (imgBufWidth - 1);
+        }
+    }
+
+    return 0;
+}
+
+static void DrawDetectionBoxesXYOnBuffer(const std::vector<object_detection::DetectionResult> &results,
+        float imgXScaleFactor, float imgYScaleFactor,
+        uint8_t *pu8imgBuf, uint32_t imgBufWidth, uint32_t imgBufHeight)
+{
+    uint32_t lineThickness = 1;
+
+    for (const auto &result : results)
+    {
+        /* Top line. */
+        DrawLine(result.m_x0 * imgXScaleFactor,
+                 result.m_y0 * imgYScaleFactor,
+                 result.m_w * imgXScaleFactor,
+                 lineThickness,
+                 COLOR_YELLOW,
+                 pu8imgBuf, imgBufWidth, imgBufHeight);
+
+        /* Bot line. */
+        DrawLine(result.m_x0 * imgXScaleFactor,
+                 (result.m_y0 + result.m_h) * imgYScaleFactor - lineThickness,
+                 result.m_w * imgXScaleFactor,
+                 lineThickness,
+                 COLOR_YELLOW,
+                 pu8imgBuf, imgBufWidth, imgBufHeight);
+
+        /* Left line. */
+        DrawLine(result.m_x0 * imgXScaleFactor,
+                 result.m_y0 * imgYScaleFactor,
+                 lineThickness,
+                 result.m_h * imgYScaleFactor,
+                 COLOR_YELLOW,
+                 pu8imgBuf, imgBufWidth, imgBufHeight);
+
+        /* Right line. */
+        DrawLine((result.m_x0 + result.m_w) * imgXScaleFactor - lineThickness,
+                 result.m_y0 * imgYScaleFactor,
+                 lineThickness,
+                 result.m_h * imgYScaleFactor,
+                 COLOR_YELLOW,
+                 pu8imgBuf, imgBufWidth, imgBufHeight);
+
+    } //for (const auto &result : results)
 }
 
 } /* namespace app */
