@@ -65,6 +65,8 @@ static void DrawDetectionBoxesXYOnBuffer(const std::vector<object_detection::Det
         float imgXScaleFactor, float imgYScaleFactor,
         uint8_t *pu8imgBuf, uint32_t imgBufWidth, uint32_t imgBufHeight);
 
+static void flip_horizontal_rgb565(uint16_t *imageBuffer, uint32_t width, uint32_t height);
+
 /* Object detection inference handler. */
 bool ObjectDetectionHandler(ApplicationContext &ctx, uint32_t imgIndex, bool runAll)
 {
@@ -264,7 +266,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     DetectorPostProcess postProcess =
         DetectorPostProcess(outputTensor0, outputTensor1, results, postProcessParams);
 
-#define TC8263                  0
 #define M55M1_PLANAR_ONLY       0
     uint32_t u32ImgWidthInference = 0;
     uint32_t u32ImgHeightInference = 0;
@@ -276,32 +277,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
     uint8_t *pu8ImagePreview = NULL;
     const uint8_t *pu8ImageInference = NULL;
 
-#if (TC8263==1)
-
-    ccap_view_info sViewInfo_Packet;
-
-    /* TEST CHIP use packet-y only */
-    sViewInfo_Packet.u32Width    = inputImgCols;
-    sViewInfo_Packet.u32Height   = inputImgRows;
-    sViewInfo_Packet.pu8FarmAddr = NULL;  /* Allocated in camera driver. */
-    sViewInfo_Packet.u32PixFmt   = CCAP_PAR_OUTFMT_ONLY_Y;
-
-    /* Initialise CAMERA - use packet pipe only */
-    if (0 != hal_camera_init(&sViewInfo_Packet, NULL))
-    {
-        printf_err("hal_camera_init failed\n");
-        return false;
-    }
-
-    u32ImgWidthInference = sViewInfo_Packet.u32Width;
-    u32ImgHeightInference = sViewInfo_Packet.u32Height;
-    u32ImgBPPInference = 1;  // Y-only
-
-    u32ImgWidthPreview = sViewInfo_Packet.u32Height;
-    u32ImgHeightPreview = sViewInfo_Packet.u32Height;
-    u32ImgBPPPreview = 1;  // Y-only
-
-#else
     // M55M1
     ccap_view_info sViewInfo_Planar;
     sViewInfo_Planar.u32Width    = inputImgCols;
@@ -336,7 +311,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         printf_err("hal_camera_init failed\n");
         return false;
     }
-#endif
 
     const size_t copySz = inputImgRows * inputImgCols;
     while (1)
@@ -357,7 +331,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         }
 #endif
 
-#if (TC8263!=1)
         /* Get planar buffer. */
         const uint8_t *PlaImage = hal_camera_get_frame(1);
         if (PlaImage == NULL)
@@ -365,7 +338,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             printf_err("Sync pla frame failed.");
             break;
         }
-#endif
 
 #if (M55M1_PLANAR_ONLY==1)
         pu8ImagePreview = PlaImage;
@@ -373,14 +345,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
         pu8ImagePreview = (uint8_t *)PktImage;
 #endif
 
-#if (TC8263==1)
-        pu8ImageInference = PktImage;
-#else
         pu8ImageInference = PlaImage;
-#endif
-
-        dataPsnImgStartX = hal_lcd_get_width() - u32ImgWidthPreview - 8;
-        dataPsnImgStartY = 8;
 
         /* Run the pre-processing, inference and post-processing. */
         if (!preProcess.DoPreProcess(
@@ -406,37 +371,50 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             break;
         }
 
-        /* Execute poster mission. JPEG encoding -> Base64 transcoding -> MQTT publish image. */
-        if (results.size() > 0)
+        if (pu8ImagePreview)
         {
-#if (TC8263==1)
-            // Only Y
-            PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, u32ImgBPPInference);
-#else
-            // Only Y
-            //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 1);
+            dataPsnImgStartX = 0;
+            dataPsnImgStartY = 0;
 
-            // YUV422P
-            PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
-#endif
-            /* Draw boxes. */
-            DrawDetectionBoxesXYOnBuffer(results,
-                                         (float)u32ImgWidthPreview / u32ImgWidthInference,
-                                         (float)u32ImgHeightPreview / u32ImgHeightInference,
-                                         pu8ImagePreview, u32ImgWidthPreview, u32ImgHeightPreview);
-        }
+            /* Execute poster mission. JPEG encoding -> Base64 transcoding -> MQTT publish image. */
+            if (results.size() > 0)
+            {
+                // Only Y
+                //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 1);
 
-        if (!hal_uvc_send_image((uint32_t)pu8ImagePreview, u32ImgWidthPreview * u32ImgHeightPreview * u32ImgBPPPreview))
-        {
-            /* Display image on the LCD. */
-            hal_lcd_display_image(
-                pu8ImagePreview,
-                u32ImgWidthPreview,
-                u32ImgHeightPreview,
-                u32ImgBPPPreview,
-                dataPsnImgStartX,
-                dataPsnImgStartY,
-                dataPsnImgDownscaleFactor);
+                // YUV422P
+                //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
+
+                /* Draw boxes. */
+                DrawDetectionBoxesXYOnBuffer(results,
+                                             (float)u32ImgWidthPreview / u32ImgWidthInference,
+                                             (float)u32ImgHeightPreview / u32ImgHeightInference,
+                                             pu8ImagePreview, u32ImgWidthPreview, u32ImgHeightPreview);
+                SCB_CleanDCache_by_Addr((void *)pu8ImagePreview, u32ImgWidthPreview * u32ImgHeightPreview * u32ImgBPPPreview);
+
+            }
+
+            /* UVC. */
+            if (uvc_is_connected())
+            {
+                /* Workaround: Flip RGB565 image by horizontal at first. */
+                flip_horizontal_rgb565((uint16_t *)pu8ImagePreview, u32ImgWidthPreview, u32ImgHeightPreview);
+
+                /* Display over UVC display. */
+                hal_uvc_send_image((uint32_t)pu8ImagePreview, u32ImgWidthPreview * u32ImgHeightPreview * u32ImgBPPPreview);
+            }
+            else
+            {
+                /* Display image on the LCD. */
+                hal_lcd_display_image(
+                    pu8ImagePreview,
+                    u32ImgWidthPreview,
+                    u32ImgHeightPreview,
+                    u32ImgBPPPreview,
+                    dataPsnImgStartX,
+                    dataPsnImgStartY,
+                    dataPsnImgDownscaleFactor);
+            }
         }
 
     } // while(1)
@@ -592,6 +570,24 @@ static int DrawLine(const uint32_t pos_x, const uint32_t pos_y,
     }
 
     return 0;
+}
+
+// Function to flip an RGB565 image buffer horizontally
+static void flip_horizontal_rgb565(uint16_t *imageBuffer, uint32_t width, uint32_t height)
+{
+    for (uint32_t y = 0; y < height / 2; y++)
+    {
+        for (uint32_t x = 0; x < width; x++)
+        {
+            uint32_t topIndex = y * width + x;                 // Index for top pixel
+            uint32_t bottomIndex = (height - 1 - y) * width + x; // Index for bottom pixel
+
+            // Swap pixels directly
+            uint16_t temp = imageBuffer[topIndex];
+            imageBuffer[topIndex] = imageBuffer[bottomIndex];
+            imageBuffer[bottomIndex] = temp;
+        }
+    }
 }
 
 static void DrawDetectionBoxesXYOnBuffer(const std::vector<object_detection::DetectionResult> &results,
