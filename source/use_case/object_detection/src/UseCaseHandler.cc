@@ -373,8 +373,6 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
 
         if (pu8ImagePreview)
         {
-            dataPsnImgStartX = 0;
-            dataPsnImgStartY = 0;
 
             /* Execute poster mission. JPEG encoding -> Base64 transcoding -> MQTT publish image. */
             if (results.size() > 0)
@@ -383,7 +381,7 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
                 //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 1);
 
                 // YUV422P
-                //PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
+                PosterNotify(ctx, (const uint8_t *)pu8ImageInference, u32ImgWidthInference, u32ImgHeightInference, 2);
 
                 /* Draw boxes. */
                 DrawDetectionBoxesXYOnBuffer(results,
@@ -405,6 +403,11 @@ bool ObjectDetectionHandlerLive(ApplicationContext &ctx)
             }
             else
             {
+                dataPsnImgStartX = hal_lcd_get_width() - u32ImgWidthPreview - 8;
+                dataPsnImgStartY = 8;
+                //dataPsnImgStartX = 0;
+                //dataPsnImgStartY = 0;
+
                 /* Display image on the LCD. */
                 hal_lcd_display_image(
                     pu8ImagePreview,

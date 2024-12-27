@@ -28,7 +28,7 @@
 static RyanMqttClient_t *client = NULL;
 
 static char mqttRecvBuffer[1024];
-static char mqttSendBuffer[(32 * 1024)];
+static char mqttSendBuffer[(64 * 1024)];
 static char mqttClientId[16];
 static char s_mqttImagePubTopic[32];
 

@@ -42,8 +42,8 @@
 #define DEF_BUFFER_NUM          1
 #if (DEF_BUFFER_NUM > 1)
     #define DEF_SWITCH_BASE_ADDR_ISR
+    #define DEF_FRAMERATE_DIV2
 #endif
-//#define DEF_FRAMERATE_DIV2
 
 typedef struct
 {

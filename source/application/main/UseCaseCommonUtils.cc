@@ -169,7 +169,7 @@ bool PosterNotify(arm::app::ApplicationContext &ctx, const uint8_t *data, const 
         .u32ImgWidth = (uint32_t)width,
         .u32ImgHeight = (uint32_t)height,
         .u32NumComponents = (uint32_t)channels,
-        .u32Quality = (uint32_t)1,
+        .u32Quality = (uint32_t)2,
     };
 
     if (hal_poster_mqtt(&sJpegCtx) < 0)
