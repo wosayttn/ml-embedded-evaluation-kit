@@ -38,7 +38,7 @@ dependencies/core-driver/src/ethosu_device_u55_u65.c
 dependencies/core-driver/src/ethosu_driver.c
 dependencies/core-driver/src/ethosu_pmu.c
 """)
-group = group + DefineGroup('MLEVK_npu_drv', npu_drv_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = npu_drv_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
+group = group + DefineGroup('mlevk_npu_drv', npu_drv_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = npu_drv_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
 dependencies_cmsis_nn_cwd = os.path.join(dependencies_cwd, 'cmsis-nn')
 cmsis_nn_INCS = [
@@ -154,7 +154,7 @@ dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_u8.c
 dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_s8_s16.c
 dependencies/cmsis-nn/Source/SoftmaxFunctions/arm_softmax_s16.c
 """)
-group = group + DefineGroup('MLEVK_cmsis_nn', cmsis_nn_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = cmsis_nn_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
+group = group + DefineGroup('mlevk_cmsis_nn', cmsis_nn_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = cmsis_nn_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
 dependencies_cmsis_dsp_cwd = os.path.join(dependencies_cwd, 'cmsis-dsp')
 cmsis_dsp_INCS = [
@@ -427,7 +427,7 @@ dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_max_no_idx_f64.c
 dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_var_f16.c
 dependencies/cmsis-dsp/Source/StatisticsFunctions/arm_min_q15.c
 """)
-group = group + DefineGroup('MLEVK_cmsis_dsp', cmsis_dsp_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = cmsis_dsp_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
+group = group + DefineGroup('mlevk_cmsis_dsp', cmsis_dsp_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = cmsis_dsp_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
 dependencies_tflm_cwd = os.path.join(dependencies_cwd, 'tensorflow')
 tflm_INCS = [
@@ -632,7 +632,7 @@ dependencies/tensorflow/signal/micro/kernels/stacker.cc
 dependencies/tensorflow/signal/micro/kernels/filter_bank_spectral_subtraction.cc
 """)
 TF_CXXFLAGS = CMSIS_FLAGS + ' -DNDEBUG=1 -DFLATBUFFERS_LOCALE_INDEPENDENT=0 '
-group = group + DefineGroup('MLEVK_tflm', tflm_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = tflm_INCS, LOCAL_CXXFLAGS = TF_CXXFLAGS)
+group = group + DefineGroup('mlevk_tflm', tflm_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = tflm_INCS, LOCAL_CXXFLAGS = TF_CXXFLAGS)
 
 mlevk_source_cwd = os.path.join(cwd, 'source')
 mlevk_INCS = [
@@ -684,7 +684,7 @@ source/hal/source/platform/rtthread/source/timer_native.c
 source/math/PlatformMath.cc
 source/profiler/Profiler.cc
 """)
-group = group + DefineGroup('MLEVK_mlevk', mlevk_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = mlevk_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
+group = group + DefineGroup('mlevk_core', mlevk_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = mlevk_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
 #USE_CASE COMMON
 mlevk_uc_cwd = os.path.join(cwd, 'source', 'use_case')
@@ -738,7 +738,7 @@ mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_cwd, mlevk_uc_name, '
 mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_res_cwd, mlevk_uc_name, 'src','*.cc'))
 mlevk_uc_SRCS = mlevk_uc_SRCS + Glob(os.path.join(mlevk_uc_api_cwd, mlevk_uc_name, 'src','*.cc'))
 
-group = group + DefineGroup('MLEVK_uc', mlevk_uc_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = mlevk_uc_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
+group = group + DefineGroup('mlevk_usecase', mlevk_uc_SRCS, depend = ['NU_PKG_USING_MLEVK'], CPPPATH = mlevk_uc_INCS, LOCAL_CFLAGS = LOCAL_CFLAGS, LOCAL_CXXFLAGS = LOCAL_CXXFLAGS)
 
 list = os.listdir(cwd)
 for d in list:
