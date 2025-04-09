@@ -80,7 +80,6 @@ void *ethosu_semaphore_create(void)
     if (sem == NULL)
     {
         rt_kprintf("Error: Failed to create semaphore.\n");
-        RT_ASSERT(0);
     }
 
     return (void *)sem;
@@ -88,9 +87,11 @@ void *ethosu_semaphore_create(void)
 
 void ethosu_semaphore_destroy(void *sem)
 {
-    RT_ASSERT(sem != RT_NULL);
-
-    rt_sem_delete(sem);
+    if (sem != NULL)
+    {
+        rt_sem_delete(sem);
+        sem = NULL;
+    }
 }
 
 int ethosu_semaphore_take(void *sem, uint64_t timeout)
